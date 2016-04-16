@@ -13,14 +13,16 @@ This engine is provided as-is, without future support. Pull requests might or mi
 COPYRIGHT
 ---------
 
-Steel Storm, Storm Engine, Phaeton and stormengine2.ico file copyright (C) 2008-2016 Kot in Action Creative Artel
+Steel Storm, Storm Engine, Phaeton, art assets, ascii assets and stormengine2.ico file copyright (C) 2008-2016 Kot in Action Creative Artel
 
 stormengine2.ico file is not allowed to be used in commercial projects.
 
 LICENSE
 -------
 
-See COPYING.txt for the GNU GENERAL PUBLIC LICENSE
+Engine source code and shaders in base/renderprogs/ are licensed under GNU GPL v3. See GPL3-LICENSE.txt for the GNU GENERAL PUBLIC LICENSE
+
+All assets in base/ folder (with the exception of renderprogs/ folder) are licensed under Creative Common Attribution NonCommercial NoDerivatives 4.0 International. See CC-BY-NC-ND-40-LICENSE.txt
 
 ADDITIONAL TERMS:  The Storm Engine 2 GPL Source Code is also subject to certain additional terms, same as Doom 3 BFG Edition GPL Source code.
 
@@ -40,6 +42,16 @@ COMPILING ON WIN32/WIN64 WITH VISUAL C++ 2013/2015 COMMUNITY EDITION
 
 6. Open generated solution, choose solution config (Release, Debug, etc.) and build it
 
+RUNNING ENGINE ON WIN32/WIN64
+-----------------------------
+
+1. Copy StormEngine2.exe into a FolderOfYourChoice/
+
+2. Copy base/ folder into FolderOfYourChoice/ where you copied StormEngine2.exe previously
+
+3. Run StormEngine2.exe
+
+Note: legal screen is disabled in debug builds. Intro video can be skipped by pressing a key, a gamepad button or moving mouse in any build.
 
 OVERALL CHANGES AND ADDITIONAL FEATURES 
 --------------------------------------
