@@ -1,0 +1,63 @@
+// this file is loaded by engine, it loads all other scripts
+
+#include "script/base_defines.script"
+
+// defs and util functions
+#include "script/se2_defs.script"
+#include "script/se2_events.script"
+//#include "script/weapon_base.script"
+//#include "script/ai_base.script"
+//#include "script/ai_monster_base.script"
+#include "script/se2_utils.script"
+
+// new AI/entity scripts
+//#include "script/base_entity.script"
+//#include "script/base_animatedentity.script"
+//#include "script/base_animated.script"
+//#include "script/base_actor.script"
+//#include "script/base_ai.script"
+//#include "script/base_player.script"
+//#include "script/ai_player.script"
+//#include "script/base_turret.script"
+//#include "script/base_drone.script"
+//#include "script/base_assault_drone.script"
+
+// weapons
+//#include "script/weapon_fists.script"
+//#include "script/weapon_blade.script"
+//#include "script/weapon_flintlock.script"
+//#include "script/weapon_ar.script"
+//#include "script/weapon_railgun.script"
+
+// gadgets
+//#include "script/gadget_compass.script"
+//#include "script/weapon_pda.script"
+
+// monsters
+//#include "script/ai_monster_union_patrolman.script"
+
+// NPCs
+//#include "script/ai_npc.script"
+
+// objects and map objects
+//#include "script/ss2_objects.script"
+
+// cinematics
+//#include "script/cinematics.script"
+
+// map scripts
+//#include "script/timemanager.script"
+
+// inventory interaction
+//#include "script/inventory_fuel_cell.script"
+//#include "script/inventory_cmd_module.script"
+
+// test scripts
+//#include "script/test.script"
+
+void se2_main()
+{
+	sys.print( "Entering se2_main()\n");
+//	game_count = 0;
+	sys.print( "Exiting se2_main()\n" );
+}

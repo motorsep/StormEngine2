@@ -1,0 +1,24 @@
+// default video
+video default_video {
+	name		"Title"
+	info		"Who made it\nDate\n\nShort Description\n"
+	video		"video/default_pda_video"
+	audio		"video_default_pda_audio"
+	preview		"guis/assets/pda/video_preview_default.tga"
+}
+
+video default_video2 {
+	name		"Title"
+	info		"Who made it\nDate\n\nShort Description\n"
+	video		"video/default_pda_video"
+	audio		"video_default_pda_audio"
+	preview		"guis/assets/pda/video_preview_default.tga"
+}
+
+video default_video3 {
+	name		"Title"
+	info		"Who made it\nDate\n\nShort Description\n"
+	video		"video/default_pda_video"
+	audio		"video_default_pda_audio"
+	preview		"guis/assets/pda/video_preview_default.tga"
+}

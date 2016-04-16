@@ -1,0 +1,56 @@
+// NO audio files in the personal pda (the one player obtains first time ever) and no video files in other pdas (the ones player will pick up through out the game)
+// videos are "downloaded" when video logs are picked up and audio logs / textual logs can contain audio logs
+
+pda default {
+	name		"First and Last names (or a nickname) "
+	fullname	"Full legal name, if applicable (this field can be skipped)"
+	icon		"blah/blah/blah" 	// material for HUD icon (might be irrelevant to current implementation)
+	id			"????x-??" 			// Where ? is a digit
+	post		"Map Location"		// this is ignored for the personal pda and map's location is used
+	title		"Title"				// player/character's title or rank
+	security	""					// only set this if it contains a new security clearance.. this field is for information to appear in the hud/pda, as real security is flagged on the entity
+	pda_email	"default_email1"
+	pda_email	"default_email2"
+	pda_audio	"default_audio_log1"
+	pda_audio   "default_audio_log2"
+}
+
+
+email default_email1 {
+	date		"??-??-????" // date
+	to		"nameX"
+	from		"nameY"
+	subject	"subject"
+	text {
+		"First line.\n\n"
+		"Second line. Can be looooong.\n\n"
+		"Cheers,\nName"
+	}
+}
+
+email default_email2 {
+	date		"??-??-????" // date
+	to		"nameX"
+	from		"nameY"
+	subject	"subject"
+	text {
+		"First line.\n\n"
+		"Second line. Can be looooong.\n\n"
+		"Cheers,\nName"
+	}
+}
+
+audio default_audio_log1 {
+	name 		"log's title"
+	info		"Some notes about audio log\nMaybe two lines of notes"
+	preview		"sound/vo/video/novideo" // this one is weird, maybe another sound shader with short version of full message? Maybe could be left blank or sound shader with blank sound
+	audio		"sound_shader"
+}
+
+audio defalt_audio_log2 {
+	name 		"log's title"
+	info		"Some notes about audio log\nMaybe two lines of notes"
+	preview		"sound/vo/video/novideo"
+	audio		"sound_shader"
+}
+

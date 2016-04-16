@@ -1,0 +1,59 @@
+windowDef Desktop
+{
+	rect		0, 0, 640, 480
+	backcolor	0.2, 0.2, 0.2, 1	
+	
+	float lightsOn	1	
+	
+	windowDef Lights
+	{		
+		rect			20, 20, 600, 60
+		backcolor		1, 0, 0, 1
+		text			"Lights"
+		textscale		0.8
+		textalign		1				
+		
+		onAction
+		{
+			if ( "Desktop::lightsOn" == 1 )
+			{
+				set "cmd"	"setkeyval light_1 _color '0 0 0'";
+				set "Desktop::lightsOn" "0";
+				set "cmd" "play vo_creepy_voice";
+			}
+			else
+			{
+				set "cmd"	"setkeyval light_1 _color '1 1 1'";
+				set "Desktop::lightsOn" "1";
+			}
+		}		
+	}
+	
+	windowDef PlaySound
+	{		
+		rect			20, 110, 600, 60
+		backcolor		1, 0, 1, 1
+		text			"Play GUI sound"
+		textscale		0.8
+		textalign		1				
+		
+		onAction
+		{
+			set "cmd" "play vo_creepy_voice";
+		}		
+	}	
+	
+	windowDef ToggleSpeaker
+	{		
+		rect			20, 180, 600, 60
+		backcolor		0, 0, 1, 1
+		text			"Toggle Music"
+		textscale		0.8
+		textalign		1				
+		
+		onAction
+		{
+			set "cmd"  "runScript test_box_gui::toggle_speaker;";
+		}		
+	}	
+}

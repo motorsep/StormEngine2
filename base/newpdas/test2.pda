@@ -1,0 +1,37 @@
+// No audio files in the personal PDA.  No video in other pdas
+
+pda test2 {	
+	name         "Nick"
+	fullname     "Nick Nicko"
+	icon         "guis/assets/pda/atorn"
+	id           "vovo77"
+	post         "Saturn"
+	title        "Telescope Tech"
+	security     ""
+	pda_email    "test2_email_1"	
+	pda_audio    "test2_audio_1"
+	pda_audio    "test2_audio_2"
+}
+
+email test2_email_1 {	
+	date		"01-20-600"
+	to			"Nick Nicko"
+	from		"Ex-girlfriend"
+	subject		"F#ck you!!!!"
+	text {
+	}
+}
+
+audio test2_audio_1 {	
+	name		"Random thoughts"
+	info		"Made by: Nick Nicko\nDate: 01-30-600\nOpen for Amendment: No\nSet for Archive: No"
+	preview		"sound/vo/video/novideo"
+	audio		"audiolog_test1"
+}
+
+audio test2_audio_2 {	
+	name		"Random thoughts 2"
+	info		"Made by: Nick Nicko\nDate: 01-30-600\nOpen for Amendment: No\nSet for Archive: No"
+	preview		"sound/vo/video/novideo"
+	audio		"audiolog_test1"
+}

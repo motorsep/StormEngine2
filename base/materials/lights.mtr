@@ -1,0 +1,33 @@
+lights/defaultPointLight
+{
+	lightFalloffImage	makeintensity( lights/square_light_simple_falloff.tga )
+	{
+		forceHighQuality
+		map lights/square_light_simple.tga
+		colored
+		zeroClamp
+	}
+}
+
+lights/defaultProjectedLight
+{
+	lightFalloffImage	_noFalloff
+	{
+		forceHighQuality
+		map lights/square_light_simple.tga
+		colored
+		zeroClamp
+	}
+}
+
+lights/ambientLight2
+{
+	ambientLight
+	lightFalloffImage	makeintensity( lights/square_light_simple.tga )
+	{
+		forceHighQuality
+		map lights/square_light_simple.tga
+		colored
+		zeroClamp
+	}
+}

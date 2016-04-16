@@ -1,0 +1,114 @@
+// this are readed by the engine
+// it contains defs that are synced to the engine
+
+#ifndef __PHAETON_DEFS__
+#define __PHAETON_DEFS__
+
+#define GAME_FPS 60			
+#define GAME_FRAMETIME 0.016
+
+#define true 1
+#define false 0
+#define null 0
+
+#define AXIS_X			0
+#define AXIS_Y			1
+#define AXIS_Z			2
+
+#define M_PI			3.1415
+#define DEG2RAD( a )	((a)*(M_PI/180.0f))
+#define RAD2DEG( a )	((a)*(180.0f/M_PI))
+
+
+// signals
+#define SIG_TOUCH        0
+#define SIG_USE          1
+#define SIG_TRIGGER      2
+#define SIG_REMOVED      3
+#define SIG_DAMAGE       4
+#define SIG_BLOCKED      5
+#define SIG_MOVER_POS1   6 // mover position 1 (door closed)
+#define SIG_MOVER_POS2   7 // mover position 2 (door open)
+#define SIG_MOVER_1TO2   8 // mover going position 1 to 2 (door opening)
+#define SIG_MOVER_2TO1   9 // mover going position 2 to 1 (door closing)
+
+// buttons
+#define BUTTON_ATTACK    1
+#define BUTTON_TALK      2
+#define BUTTON_WALKING   16
+#define BUTTON_ANY       128
+
+// shader parms
+#define SHADERPARM_RED              0
+#define SHADERPARM_GREEN            1
+#define SHADERPARM_BLUE             2
+#define SHADERPARM_ALPHA            3
+#define SHADERPARM_TIMESCALE        3
+#define SHADERPARM_TIMEOFFSET       4
+#define SHADERPARM_DIVERSITY        5	// random between 0.0 and 1.0 for some effects (muzzle flashes, etc)
+#define SHADERPARM_MODE             7	// for selecting which shader passes to enable
+#define SHADERPARM_TIME_OF_DEATH    7	// skin-burn-away effect and time offset
+
+
+// contents flags
+// should be synced with renderer/Material.h
+#define CONTENTS_SOLID              1
+#define CONTENTS_OPAQUE             2
+#define CONTENTS_WATER              4
+#define CONTENTS_PLAYERCLIP         8
+#define CONTENTS_MONSTERCLIP        16
+#define CONTENTS_MOVEABLECLIP       32
+#define CONTENTS_IKCLIP             64
+#define CONTENTS_BLOOD              128
+#define CONTENTS_BODY               256
+#define CONTENTS_PROJECTILE         512
+#define CONTENTS_CORPSE             1024
+#define CONTENTS_RENDERMODEL        2048
+#define CONTENTS_TRIGGER            4096
+#define CONTENTS_AAS_SOLID          8192
+#define CONTENTS_AAS_OBSTACLE       16384
+#define CONTENTS_FLASHLIGHT_TRIGGER 32768
+
+// content masks
+#define	MASK_ALL                    (-1)
+#define	MASK_SOLID                  (CONTENTS_SOLID)
+#define	MASK_MONSTERSOLID           (CONTENTS_SOLID|CONTENTS_MONSTERCLIP|CONTENTS_BODY)
+#define	MASK_PLAYERSOLID            (CONTENTS_SOLID|CONTENTS_PLAYERCLIP|CONTENTS_BODY)
+#define	MASK_DEADSOLID              (CONTENTS_SOLID|CONTENTS_PLAYERCLIP)
+#define	MASK_WATER                  (CONTENTS_WATER)
+#define	MASK_OPAQUE                 (CONTENTS_OPAQUE)
+#define	MASK_SHOT_RENDERMODEL       (CONTENTS_SOLID|CONTENTS_RENDERMODEL)
+#define	MASK_SHOT_BOUNDINGBOX       (CONTENTS_SOLID|CONTENTS_BODY)
+
+// sound channels
+#define SND_CHANNEL_AUTO        -1
+#define SND_CHANNEL_ANY			0
+#define SND_CHANNEL_VOICE		1
+#define SND_CHANNEL_VOICE2		2
+#define SND_CHANNEL_BODY		3
+#define SND_CHANNEL_BODY2		4
+#define SND_CHANNEL_BODY3		5
+#define SND_CHANNEL_WEAPON		6
+#define SND_CHANNEL_ITEM		7
+#define SND_CHANNEL_HEART		8
+#define SND_CHANNEL_PDA			9
+#define SND_CHANNEL_DEMONIC		10
+
+// animation channels
+#define ANIMCHANNEL_ALL             0
+#define ANIMCHANNEL_TORSO           1
+#define	ANIMCHANNEL_LEGS            2
+#define	ANIMCHANNEL_HEAD            3
+#define	ANIMCHANNEL_EYELIDS         4
+
+// projectile states
+#define PROJECTILE_SPAWNED          0
+#define PROJECTILE_CREATED          1
+#define PROJECTILE_LAUNCHED         2
+#define PROJECTILE_FIZZLED          3
+#define PROJECTILE_EXPLODED         4
+
+#define waitUntil( x )	while( !( x ) ) { waitFrame(); }
+#define eachFrame		for( 0; 1; waitFrame() )
+
+#endif

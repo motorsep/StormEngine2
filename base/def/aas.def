@@ -1,0 +1,100 @@
+
+entityDef aas_types {	
+	"type1"						"aas48"
+	"type2"						"aas96"
+	"type3"						"aas_drone"
+	"type4"						"aas_adrone"
+}
+
+//
+// 48x48x96
+//
+entityDef aas48 {	
+	"mins"						"-24 -24 0"
+	"maxs"						"24 24 82"
+	"usePatches"				"0"
+	"writeBrushMap"				"0"
+	"playerFlood"				"0"
+	"allowSwimReachabilities"	"0"
+	"allowFlyReachabilities"	"1"
+	"fileExtension"				"aas48"
+	"gravity"					"0 0 -1050"
+	"maxStepHeight"				"18"
+	"maxBarrierHeight"			"32"
+	"maxWaterJumpHeight"		"20"
+	"maxFallHeight"				"64"
+	"minFloorCos"				"0.6999999881"
+	"tt_barrierJump"			"100"
+	"tt_startCrouching"			"100"
+	"tt_waterJump"				"100"
+	"tt_startWalkOffLedge"		"100"
+}
+
+//
+// 96x96x96
+//
+entityDef aas96 {	
+	"mins"						"-47 -47 0"
+	"maxs"						"47 47 96"
+	"usePatches"				"0"
+	"writeBrushMap"				"0"
+	"playerFlood"				"0"
+	"allowSwimReachabilities"	"0"
+	"allowFlyReachabilities"	"0"
+	"fileExtension"				"aas96"
+	"gravity"					"0 0 -1050"
+	"maxStepHeight"				"18"
+	"maxBarrierHeight"			"32"
+	"maxWaterJumpHeight"		"20"
+	"maxFallHeight"				"64"
+	"minFloorCos"				"0.6999999881"
+	"tt_barrierJump"			"100"
+	"tt_startCrouching"			"100"
+	"tt_waterJump"				"100"
+	"tt_startWalkOffLedge"		"100"
+}
+
+//
+// 96x96x96
+//
+entityDef aas_drone {	
+	"mins"						"-32 -30 0"
+	"maxs"						"32 30 190"
+	"usePatches"				"0"
+	"writeBrushMap"				"0" // what is this for ??
+	"playerFlood"				"0"
+	"allowSwimReachabilities"	"0"
+	"allowFlyReachabilities"	"1"
+	"fileExtension"				"aas_drone"
+	"gravity"					"0 0 -1050"
+	"maxStepHeight"				"18"
+	"maxBarrierHeight"			"32"
+	"maxWaterJumpHeight"		"20"
+	"maxFallHeight"				"64"
+	"minFloorCos"				"0.6999999881"
+	"tt_barrierJump"			"100"
+	"tt_startCrouching"			"100"
+	"tt_waterJump"				"100"
+	"tt_startWalkOffLedge"		"100"
+}
+
+entityDef aas_adrone {	
+	"mins"						"-48 -64 0"
+	"maxs"						"48 64 72"
+	"usePatches"				"0"
+	"writeBrushMap"				"0" // what is this for ??
+	"playerFlood"				"0"
+	"allowSwimReachabilities"	"0"
+	"allowFlyReachabilities"	"1"
+	"fileExtension"				"aas_adrone"
+	"gravity"					"0 0 -1050"
+	"maxStepHeight"				"18"
+	"maxBarrierHeight"			"32"
+	"maxWaterJumpHeight"		"20"
+	"maxFallHeight"				"64"
+	"minFloorCos"				"0.6999999881"
+	"tt_barrierJump"			"100"
+	"tt_startCrouching"			"100"
+	"tt_waterJump"				"100"
+	"tt_startWalkOffLedge"		"100"
+}

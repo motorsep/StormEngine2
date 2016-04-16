@@ -1,0 +1,137 @@
+// Game/Map secret counter.
+
+void set_game_secret_count();
+
+void set_game_secret_count()
+{
+	float game_count;
+	game_count = sys.getPersistantFloat("gamesecrets");
+	game_count = game_count + 1;
+	sys.setPersistantArg("gamesecrets", game_count);
+//	sys.print("game secrets found: ");
+//	sys.println(game_count);
+}
+
+
+// Math
+
+/*
+==================
+abs
+
+Returns the absolute value of a number
+==================
+*/
+float abs( float value ) {
+	if ( value < 0 ) {
+		return value * -1;
+	}
+
+	return value;
+}
+
+
+/*
+==================
+anglemod360
+
+Puts angles into the range of 0 to 360
+==================
+*/
+vector anglemod360( vector ang ) {
+	while( ang_x < 0 ) {
+		ang_x += 360;
+	}
+	while( ang_x >= 360 ) {
+		ang_x -= 360;
+	}
+	while( ang_y < 0 ) {
+		ang_y += 360;
+	}
+	while( ang_y >= 360 ) {
+		ang_y -= 360;
+	}
+	while( ang_z < 0 ) {
+		ang_z += 360;
+	}
+	while( ang_z >= 360 ) {
+		ang_z -= 360;
+	}
+
+	return ang;
+}
+
+/*
+==================
+anglemod180
+
+Puts angles into the range of -180 to 180
+==================
+*/
+vector anglemod180( vector ang ) {
+	while( ang_x < -180 ) {
+		ang_x += 360;
+	}
+	while( ang_x >= 180 ) {
+		ang_x -= 360;
+	}
+	while( ang_y < -180 ) {
+		ang_y += 360;
+	}
+	while( ang_y >= 180 ) {
+		ang_y -= 360;
+	}
+	while( ang_z < -180 ) {
+		ang_z += 360;
+	}
+	while( ang_z >= 180 ) {
+		ang_z -= 360;
+	}
+
+	return ang;
+}
+
+
+
+/*
+==================
+RandomDelay
+==================
+*/
+float RandomDelay( float min, float max ) {
+	float t;
+	
+	t = sys.getTime();
+	t += min + sys.random( max - min );
+	
+	return t;
+}
+
+/*
+==================
+RandomTime
+==================
+*/
+float RandomTime( float delay ) {
+	float t;
+	
+	t = sys.getTime();
+	t += sys.random( delay );
+	
+	return t;
+}
+
+/*
+==================
+DelayTime
+==================
+*/
+float DelayTime( float delay ) {
+	float t;
+	
+	t = sys.getTime();
+	t += delay;
+	t += sys.random( 2 ) - 1;
+	
+	return t;
+}

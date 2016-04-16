@@ -1,0 +1,31 @@
+// NO audio files in the personal pda (the one player obtains first time ever) and no video files in other pdas (the ones player will pick up through out the game)
+// videos are "downloaded" when video logs are picked up and audio logs / textual logs can contain audio logs
+
+pda personal
+{
+	name		"^5Personal^0"
+	fullname	"Dick Dickenson"
+	icon		"gui/pda/blank"
+	id			"1111-11"
+	post		"Moon"			// this is ignored for the personal pda and map's location is used
+	title		"Resource Scout"	// player/character's title or rank
+	security	""					// only set this if it contains a new security clearance.. this field is for information to appear in the hud/pda, as real security is flagged on the entity
+	pda_email	"personal"	
+	pda_video	"default_video"
+	pda_video	"default_video2"
+	pda_video	"default_video3"
+}
+
+email personal
+{
+	date		"01-01-600"
+	to			"self"
+	from		"self"
+	subject		"Reminder"
+	text 
+	{
+	"ATTENTION!.\n\n"
+	"Don't forget to send out emergency beacon after landing.\n\n"	
+	"Dick\n"
+	}
+}

@@ -1,0 +1,98 @@
+/*==============================================================================
+			WORLDSPAWN
+==============================================================================*/
+
+entityDef worldspawn 
+{
+	"editor_color"            "0 0 0"
+	"editor_mins"             "?"
+	"editor_maxs"             "?"
+
+	"editor_usage"            "Map geometry entity, only one worldspawn entity is allowed per map"
+	"editor_var music"        "music"
+	"editor_var gravity"      "gravity"
+	"editor_var no_stamina"   "player can always run"
+	"editor_var no_Weapons"   "only first weapon and no attacks"
+
+	"spawnclass"			  "idWorldspawn"
+	"gravity"				  "1000"
+	"name"					  "world"
+}
+
+/*==============================================================================
+			LIGHT SOURCE
+==============================================================================*/
+
+entityDef light 
+{
+	"editor_color"					"0 1 0"
+	"editor_mins"					"-8 -8 -8"
+	"editor_maxs"					"8 8 8"
+	"editor_rotatable"				"1"
+	"editor_displayFolder"			"lights"
+
+	"editor_usage"                 "Light source.  If health is set, light becomes breakable and turns off when shot."
+	
+	"editor_material texture"      "light shader to use."
+	"editor_color color"           "light color"
+	"editor_var shaderParm3"       "shader parm #3"
+	"editor_var shaderParm4"       "shader parm #4"
+	"editor_var shaderParm5"       "shader parm #5"
+	"editor_var shaderParm6"       "shader parm #6"
+	"editor_var shaderParm7"       "shader parm #7"
+	"editor_var count"             "this many times light must be triggered to toggle"
+	"editor_var break"             "break when triggered"
+	"editor_model model"           "model"
+	"editor_model broken"          "model if light is broken (default is model name with '_broken' suffix)"
+	"editor_var hideModelOnBreak"  "hide model when broke"
+	"editor_var health"			   "how many damage to deal to become broken, 0 is invincible"
+	"editor_var target"			   "trigger this entities when shot"
+	"editor_var levels"			   "like count (this many times light must be triggered to toggle), but each trigger light will become dimmer by one level"
+	"editor_var start_off"		   "start toggled off"
+	"editor_var snd_broken"		   "sound shader to use if broken"
+	"editor_var mtr_broken"		   "material to use if broken"
+	"editor_color color_demonic"   "demonic mode - color"
+	"editor_material mat_demonic"  "demonic mode - material"
+	"editor_var leave_demonic_mat" "demonic mode - leave demonic material when effect expires (color is still reverted)"
+
+	"spawnclass"				   "idLight"
+	
+	// defaults
+	"health"					   "0"
+	"levels"					   "1"
+	"start_off"					   "0"
+	"count"						   "1"
+	"break"						   "0"
+}
+
+/*==============================================================================
+			SOUND SOURCE
+==============================================================================*/
+
+entityDef speaker {
+	"editor_color"					"0 1 0"
+	"editor_mins"					"-8 -8 -8"
+	"editor_maxs"					"8 8 8"
+	"editor_material"				"textures/editor/speaker"
+	
+
+	"editor_usage"					"Sound source. Use to add atmospheric sound effects on your map or add background music."
+	
+	"editor_snd s_shader"			"specify a sound file (.wav or .ogg) or a sound shader."
+	"editor_snd snd_demonic"		"reserved field (?)"
+	"editor_var overlayDemonic"		"to overlay sound with snd_demonic instead of replacing it, set this to 1."
+	"editor_var s_waitfortrigger"	"set to 1 to play the sound when triggered. 0 to play it on map load."
+	"editor_var s_volume"			"override sound shader volume level."
+	"editor_var s_minDistance"		"override sound shader minDistance."
+	"editor_var s_maxDistance"		"override sound shader maxDistance."
+	"editor_var s_omni"				"force sound to be omnidirectional."
+	"editor_var s_looping"			"force sound to loop continuously."
+	"editor_var s_occlusion"		"do not occlude this sound by portals"
+	"editor_var s_global"			"play sound at the same volume level across the map (no falloff at all)"
+	"editor_var s_bgmusic"			"flags this speaker as background music source to allow independent volume control via menu."
+	"editor_var s_shakes"			"when the sound is loud this entity makes the screen shake."
+	"editor_var wait"				"specifies seconds between triggerings when set > 0."
+	"editor_var random"				"every wait time will be random."
+	
+	"spawnclass"					"idSound"
+}

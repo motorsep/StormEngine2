@@ -1,0 +1,51 @@
+/***********************************************************************
+
+base_defines.script
+
+Shared Script defines
+
+***********************************************************************/
+
+// move types
+//
+#define MOVETYPE_DEAD					0				// no enemy tracking or steering.  just runs physics and script.
+#define MOVETYPE_ANIM					1				// movement based on animation deltas
+#define MOVETYPE_SLIDE					2				// movement based on velocity.  set speed using setFlySpeed.
+#define MOVETYPE_FLY					3				// flying monsters.
+#define MOVETYPE_STATIC					4				// no movement or gravity.
+
+#define MOVETYPE_DRONE					5				// combination of SLIDE and FLY
+
+//
+// move results
+//
+#define MOVE_STATUS_DONE				0				// move succeeded, or not moving
+#define MOVE_STATUS_MOVING				1				// move in progress
+#define MOVE_STATUS_WAITING				2				// 
+#define MOVE_STATUS_DEST_NOT_FOUND		3				// destination doesn't exist
+#define MOVE_STATUS_DEST_UNREACHABLE	4				// 
+#define MOVE_STATUS_BLOCKED_BY_WALL		5
+#define MOVE_STATUS_BLOCKED_BY_OBJECT	6
+#define MOVE_STATUS_BLOCKED_BY_ENEMY	7
+#define MOVE_STATUS_BLOCKED_BY_MONSTER	8
+
+//
+// talk states
+//
+#define TALK_NEVER						0
+#define TALK_DEAD						1
+#define TALK_OK							2
+#define TALK_BUSY						3
+
+#define INVALID_JOINT					-1
+
+#define JOINTMOD_NONE					0
+#define JOINTMOD_LOCAL					1				// modifies the joint's position or orientation in joint local space
+#define JOINTMOD_LOCAL_OVERRIDE			2 				// sets the joint's position or orientation in joint local space
+#define JOINTMOD_WORLD					3				// modifies joint's position or orientation in model space
+#define JOINTMOD_WORLD_OVERRIDE			4				// sets the joint's position or orientation in model space	
+
+#define TURRET_YAW						0
+#define TURRET_PITCH					1
+
+

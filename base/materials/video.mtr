@@ -1,0 +1,15 @@
+// Intro video (spinning logo)
+video/kialogo {
+	translucent {
+		videomap "video/kialogo.roq"
+		linear
+	}
+}
+
+// default video in PDA 
+video/default_pda_video {
+	translucent {
+		videomap "video/default_pda_video.roq"
+		linear
+	}
+}

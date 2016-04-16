@@ -1,0 +1,18 @@
+{
+"mapspath" "./maps"
+"bsp" ""
+"bsp noflood" ""
+"bsp shadowOpt 2" ""
+"bsp noaas" ""
+"bspext" ""
+"bspext noflood" ""
+"autosave" "C:/Users/Public/autosave.map"
+"autosave1" "C:/Users/Public/autosave1.map"
+"autosave2" "C:/Users/Public/autosave2.map"
+"texturepath" "./textures"
+"entitypath" "./def/*.def"
+"remotebasepath" "./"
+"rshcmd" ""
+"basepath" "./"
+"brush_primit" "1"
+}

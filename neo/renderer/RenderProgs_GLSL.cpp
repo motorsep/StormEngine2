@@ -39,7 +39,7 @@ idCVar r_displayGLSLCompilerMessages( "r_displayGLSLCompilerMessages", "1", CVAR
 // DG end
 
 // RB begin
-idCVar r_alwaysExportGLSL( "r_alwaysExportGLSL", "1", CVAR_BOOL, "" );
+idCVar r_alwaysExportGLSL( "r_alwaysExportGLSL", "0", CVAR_BOOL, "" );
 // RB end
 
 #define VERTEX_UNIFORM_ARRAY_NAME				"_va_"

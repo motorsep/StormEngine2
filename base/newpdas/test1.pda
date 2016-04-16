@@ -1,0 +1,22 @@
+// No audio files in the personal PDA.  No video in other pdas
+
+pda test1 {	
+	pda_email    "test1_email_1"
+	pda_email    "test1_email_2"	
+	pda_audio    "test1_audio_1"
+}
+
+email test1_email_1 {	
+	text {
+	}
+}
+
+email test1_email_2 {	
+	text {	
+	}
+}
+
+audio test1_audio_1 {	
+	preview		"sound/vo/video/novideo"
+	audio		"audiolog_test1"
+}

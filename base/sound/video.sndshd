@@ -1,0 +1,16 @@
+into_sound/kialogo
+{
+	description 	"Intro RoQ video soundtrack"
+	
+	minDistance	4
+	maxDistance	15
+	volume 		200
+	
+	sound/kialogo.wav
+}
+
+// audio track for default PDA video
+video_default_pda_audio {
+	onDemand
+	//sound/radio/radio_static.wav
+}
