@@ -3,7 +3,7 @@ brought to you by Kot in Action Creative Artel
 
 Storm Engine 2 Readme - https://github.com/motorsep/StormEngine2
 
-Note: It due time, shaders, SWF source files for menus, minimal set of assets and external content authoring tools will be made available to the public under suitable licenses.
+Note: It due time minimal set of assets and external content authoring tools might be made available to the public under suitable licenses.
 
 DISCLAIMER
 ----------
