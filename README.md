@@ -1,6 +1,21 @@
-# StormEngine2
+# Storm Engine 2
+brought to you by Kot in Action Creative Artel
 
 Storm Engine 2 Readme - https://github.com/motorsep/StormEngine2
+
+Note: It due time, shaders, SWF source files for menus, minimal set of assets and external content authoring tools will be made available to the public under suitable licenses.
+
+DISCLAIMER
+----------
+
+This engine is provided as-is, without future support. Pull requests might or might not be accepted. Feel free to do with the engine anything you want, it's under GPL anyway. Please don't forget to credit us when using engine or parts of its code in your projects. IN ANY CASE, KOT IN ACTION CREATIVE ARTEL, AND ITS RESPECTIVE OFFICERS, REPRESENTATIVES, AGENTS, SUCCESSORS, AND ASSIGNS SHALL NOT BE LIABLE FOR LOSS OF DATA, LOSS OF PROFITS, LOST SAVINGS, SPECIAL, INCIDENTAL, CONSEQUENTIAL, INDIRECT OR PUNITIVE DAMAGES, OR ANY OTHER DAMAGES ARISING FROM ANY ALLEGED CLAIMS ARISING FROM USE OF THE ENGINE AND ITS SOURCE CODE EVEN IF KOT-IN-ACTION, OR THEIR RESPECTIVE AGENTS HAVE BEEN ADVISED OF THE POSSIBILITY OF ANY SUCH DAMAGES, OR EVEN IF SUCH DAMAGES ARE FORESEEABLE, OR LIABLE FOR ANY CLAIM BY ANY OTHER PARTY.
+
+COPYRIGHT
+---------
+
+Steel Storm, Storm Engine, Phaeton and stormengine2.ico file copyright (C) 2008-2016 Kot in Action Creative Artel
+
+stormengine2.ico file is not allowed to be used in commercial projects.
 
 LICENSE
 -------
@@ -23,17 +38,18 @@ COMPILING ON WIN32/WIN64 WITH VISUAL C++ 2013/2015 COMMUNITY EDITION
 
 5. Generate the MSVC projects using CMake by doubleclicking a matching configuration .bat file in the neo/ folder.
 
-6. Open generated solution and compile
+6. Open generated solution, choose solution config (Release, Debug, etc.) and build it
 
 
-OVERALL CHANGES AND ADDITIONAL FEATURES
----------------------------------------
+OVERALL CHANGES AND ADDITIONAL FEATURES 
+--------------------------------------
+(in addition to existing set of features of the original engine)
 
 - Flexible build system using CMake
 
 - Linux support (32 and 64 bit)
 
-- Win64 support
+- Win64 support (including Win64 tools)
 
 - OpenAL Soft sound backend primarily developed for Linux but works on Windows as well
 
@@ -43,7 +59,7 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - True 64 bit HDR imaging
 
-- Full set of tools for Win32/Win64 platforms (with various fixes and improvements)
+- Full set of built-in tools for Win32/Win64 platforms (with various fixes and improvements)
 
 < more info to come >
 
