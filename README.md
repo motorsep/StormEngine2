@@ -71,11 +71,45 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - True 64 bit HDR imaging
 
+- Soft (feathered) particles
+
+- Gloss maps support
+
+- Oblique view frustum (for proper reflections in the water)
+
+- High resolution RoQ videos playback
+
+- Blurry real-time reflections
+
+- Image based bloom ("glow")
+
+- Image dithering (eliminates banding artifacts on gradients)
+
+- Underwater view warping
+
+- Material flag to force images to be kept in RGBA format (unocmpressed)
+
 - Full set of built-in tools for Win32/Win64 platforms (with various fixes and improvements)
+
+- envShot cmd to generate cubemaps
 
 - Demo recording and playback
 
-< more info to come >
+- LOD for static and animated entities (although not for map brushes)
+
+- Mods loading and packaging into .resources
+
+- Wheeled Vehicles (player driven and self-driving)
+
+- Automatic overwrite of outdated binary files when auto-authoring updated content
+
+- Fixed inlining (embedding) of static meshes into .proc while retaining collisions
+
+- Map loading progress indicator
+
+- Texure compression progress indicator
+
+- Collision fix for large coordinates
 
 
 KNOWN ISSUES
