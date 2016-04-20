@@ -73,6 +73,8 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - Full set of built-in tools for Win32/Win64 platforms (with various fixes and improvements)
 
+- Demo recording and playback
+
 < more info to come >
 
 
