@@ -93,6 +93,10 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - envShot cmd to generate cubemaps
 
+- Higher quality YCoCg "scaled" DXT5 compression for diffuse images (from GIMP DDS)
+
+- YCoCg "scaled" DXT 5 copmpression for skyboxes and cubemaps (yields high quality skies with minimal artifacts and no banding)
+
 - Demo recording and playback
 
 - LOD for static and animated entities (although not for map brushes)
