@@ -1,0 +1,152 @@
+/*
+===========================================================================
+
+Doom 3 BFG Edition GPL Source Code
+Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company. 
+
+This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").  
+
+Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
+
+In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
+
+If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+
+===========================================================================
+*/
+
+/*
+	This file ( particleBase.pixel and .vertex ) is not meant to be used directly in a material, instead it gets #include'd into the actual
+	shader file along with some #define switches before the #include, driving which type of shader combination will be created.
+
+	Shading Option Switches, use these to create different types of specialized shaders if needed.
+	See "particleBlend_SoftDistFog.pixel" or similar files for examples.
+
+	#define SO_BlendMode 0 // Sets Blending Mode the shader will be used in. 1 = Blend, 2 = Add, 3 = Filter
+	#define SO_UseZFeather // Enable Z Feathering ( parms in vertexParm 0 )
+	#define SO_UseDistanceFade // Enable Distance Fading ( parms in vertexParm 1 )
+	#define SO_UseFogging // Enable Pseudo Fogging ( parms in vertexParm 2 )	
+*/
+
+#include "global.inc"
+
+uniform sampler2D	samp0 : register(s0); // texture 0 is _currentDepth
+uniform sampler2D	samp1 : register(s1); // texture 1 is main texture
+
+struct PS_IN {
+	float4 position		: VPOS;
+	float2 texCoord		: TEXCOORD0;
+	float4 genParms0	: TEXCOORD1;
+	float4 genParms1	: TEXCOORD2;
+	float4 genParms2	: TEXCOORD3;
+	float4 color		: COLOR0;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+// Depth / Fade related functions
+
+static float LinearizeDepth( float inDepth ) {
+	float
+		zNear 	= 5.0,
+		zFar	= 3000.0;
+	float
+		zN		= 2.0 * inDepth - 1.0;
+
+	return 2.0 * zNear * zFar / ( zFar + zNear - zN * (zFar - zNear));
+}
+
+static float GetDepth( sampler2D tex, float2 uv ) {
+	return tex2D( tex, uv ).x;
+}
+
+static float GetLinearDepth( sampler2D tex, float2 uv ) {
+	return LinearizeDepth( GetDepth( tex, uv ));
+}
+
+static float GetDistanceFalloff( float baseDist, float start, float range ) {
+	return saturate( ( baseDist - start ) / range );
+}
+
+static float ZFeather( sampler2D depthSampler, float2 depthSamplePos, float fragmentDepth, float featherAmount ) {
+	float
+		d = GetLinearDepth( depthSampler, depthSamplePos ),
+		d2 = LinearizeDepth( fragmentDepth );
+
+	return saturate( ( d - d2 ) * featherAmount );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float4
+		texSample = tex2D( samp1, fragment.texCoord );
+	float4
+		outColor;
+
+	outColor = texSample * fragment.color;
+
+#ifdef SO_UseZFeather
+	float2
+		screenPos = vposToScreenPosTexCoord( fragment.position.xy );
+#endif
+#if defined( SO_UseDistanceFade ) || defined( SO_UseFogging )
+	float
+		fragDepth = fragment.position.z / fragment.position.w;
+#endif
+
+#if SO_BlendMode == 1
+#ifdef SO_UseZFeather
+	outColor.a *= ZFeather( samp0, screenPos, fragment.position.z, fragment.genParms0.x );
+#endif
+#ifdef SO_UseDistanceFade
+	outColor.a *= GetDistanceFalloff( fragDepth, fragment.genParms1.x, fragment.genParms1.y );
+#endif
+#ifdef SO_UseFogging
+	outColor.rgb = lerp( outColor.rgb, fragment.genParms2.rgb, saturate( fragDepth * fragment.genParms2.a ));
+	//outColor.a *= 1.0 - saturate( fragDepth * fragment.genParms2.a );
+#endif
+#endif
+
+#if SO_BlendMode == 2
+#ifdef SO_UseZFeather
+	outColor.rgb *= ZFeather( samp0, screenPos, fragment.position.z, fragment.genParms0.x );
+#endif
+#ifdef SO_UseDistanceFade
+	outColor.rgb *= GetDistanceFalloff( fragDepth, fragment.genParms1.x, fragment.genParms1.y );
+#endif
+#ifdef SO_UseFogging
+	// Additive blending can't reliably fade to a fog color - maybe this approach should be used in general ?
+	outColor.rgb *= saturate( 1.0 - ( fragDepth * fragment.genParms2.a ));
+#endif
+#endif
+
+#if SO_BlendMode == 3
+	float
+		fadeValue = fragment.color.a;
+#ifdef SO_UseZFeather
+	fadeValue *= ZFeather( samp0, screenPos, fragment.position.z, fragment.genParms0.x );
+#endif
+#ifdef SO_UseDistanceFade
+	fadeValue *= GetDistanceFalloff( fragDepth, fragment.genParms1.x, fragment.genParms1.y );
+#endif
+#ifdef SO_UseFogging
+	fadeValue *= saturate( 1.0 - ( fragDepth * fragment.genParms2.a ));
+#endif
+
+	outColor.rgb = lerp( float3( 1.0 ), outColor.rgb, fadeValue );
+#endif
+
+	result.color = outColor;
+}

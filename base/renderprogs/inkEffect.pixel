@@ -1,0 +1,118 @@
+/*
+===========================================================================
+
+Doom 3 BFG Edition GPL Source Code
+Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company.
+
+This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").
+
+Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
+
+In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
+
+If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D	depthImage : register(s0); // texture 0 is _currentDepth
+
+struct PS_IN {
+	float4 position	: VPOS;
+	float4 genParms0	: TEXCOORD0_centroid;
+	float4 genParms1	: TEXCOORD1_centroid;
+	float4 genParms2	: TEXCOORD2_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+float linearizeDepth( float inDepth ) {
+	float
+		zNear = 3.0,
+		zFar	= 3000.0;
+	float
+		zN		= 2.0 * inDepth - 1.0;
+
+	return 2.0 * zNear * zFar / ( zFar + zNear - zN * (zFar - zNear));
+}
+
+float
+GetDepth( sampler2D tex, float2 uv ) {
+	return tex2D( tex, uv ).x;
+}
+
+float
+GetLinearDepth( sampler2D tex, float2 uv ) {
+	return linearizeDepth( GetDepth( tex, uv ));
+}
+
+float
+InkTestSimple3( float sample1, float sample2, float sample3 ) {
+	return saturate( ( sample3 - sample2 ) - ( sample2 - sample1 ));
+}
+
+float
+inkSimple( float2 basePos, float3 inkParms ) {
+	float3
+		sampleDir = float3( 1.0, 0.0, -1.0 );
+	float
+		baseSample = GetDepth( depthImage, basePos );
+	float2
+		sampleSize = rpWindowCoord.xy * inkParms.x; // rpWindowCoord essentially holds pixel-extents
+	float
+		samples[8];
+
+	// get samples
+	samples[0] 	= GetDepth( depthImage, sampleDir.xx * sampleSize + basePos );
+	samples[1] 	= GetDepth( depthImage, sampleDir.xy * sampleSize + basePos );
+	samples[2] 	= GetDepth( depthImage, sampleDir.xz * sampleSize + basePos );
+	samples[3] 	= GetDepth( depthImage, sampleDir.yx * sampleSize + basePos );
+	samples[4] 	= GetDepth( depthImage, sampleDir.yz * sampleSize + basePos );
+	samples[5] 	= GetDepth( depthImage, sampleDir.zx * sampleSize + basePos );
+	samples[6] 	= GetDepth( depthImage, sampleDir.zy * sampleSize + basePos );
+	samples[7] 	= GetDepth( depthImage, sampleDir.zz * sampleSize + basePos );
+
+	// simple naive ink
+	float
+		s1 = InkTestSimple3( samples[6], baseSample, samples[1] ),
+		s2 = InkTestSimple3( samples[3], baseSample, samples[4] ),
+		s3 = InkTestSimple3( samples[5], baseSample, samples[2] ),
+		s4 = InkTestSimple3( samples[7], baseSample, samples[0] );
+
+	return 1.0 - saturate((( s1 + s2 + s3 + s4 ) * 0.25 ) * inkParms.y + inkParms.z );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2
+		basePos 	= vposToScreenPosTexCoord( fragment.position.xy );
+	float
+		linDepth = GetLinearDepth( depthImage, basePos ),
+		parmLerp = saturate( linDepth * fragment.genParms0.y + fragment.genParms0.z );
+	float3
+		iParms = lerp( fragment.genParms1.xyz, fragment.genParms2.xyz, parmLerp );
+	float
+		inkValue = lerp( 1.0, inkSimple( basePos, iParms ), fragment.genParms0.x );
+
+	float4
+		outColor;
+
+	outColor.xyz = float3( inkValue );
+	outColor.a = 1.0;
+
+	result.color = outColor;
+}

@@ -1,0 +1,150 @@
+/*
+===========================================================================
+
+Doom 3 BFG Edition GPL Source Code
+Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company. 
+
+This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").  
+
+Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
+
+In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
+
+If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D	samp0 : register(s0); // texture 0 is _scratch (mirror render)
+uniform sampler2D	samp1 : register(s1); // texture 1 is the per-surface bump map
+uniform sampler2D	samp2 : register(s2); // texture 2 is the mask texture
+
+struct PS_IN {
+	float4 position		: VPOS;
+	float4 texcoord0	: TEXCOORD0_centroid;
+	float4 texcoord1	: TEXCOORD1_centroid;
+	float4 texcoord2	: TEXCOORD2_centroid;
+	float4 texcoord3	: TEXCOORD3_centroid;
+	float4 texcoord4	: TEXCOORD4_centroid;
+	float4 texcoord5	: TEXCOORD5_centroid;
+	float4 texcoord6	: TEXCOORD6_centroid;
+	float4 texcoord7	: TEXCOORD7_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+const float2 poisson8[8] = float2[8](
+	float2(  0.100000,  0.300000 ),
+	float2(  0.527837, -0.085868 ),
+	float2( -0.040088,  0.536087 ),
+	float2( -0.170445, -0.179949 ),
+	float2( -0.419418, -0.616039 ),
+	float2(  0.440453, -0.639399 ),
+	float2( -0.757088,  0.349334 ),
+	float2(  0.574619,  0.685879 )
+);
+
+// const float2 poisson12[12] = float2[12](
+	// float2( -0.326212, -0.405810 ),
+	// float2( -0.840144, -0.073580 ),
+	// float2( -0.695914,  0.457137 ),
+	// float2( -0.203345,  0.620716 ),
+	// float2(  0.962340, -0.194983 ),
+	// float2(  0.473434, -0.480026 ),
+	// float2(  0.519456,  0.767022 ),
+	// float2(  0.185461, -0.893124 ),
+	// float2(  0.507431,  0.064425 ),
+	// float2(  0.896420,  0.412458 ),
+	// float2( -0.321940, -0.932615 ),
+	// float2( -0.791559, -0.597710 )
+// );
+
+//const float2 poisson16[16] = float2[16](
+//	float2( -0.94201624, -0.39906216 ),  
+//	float2(  0.94558609, -0.76890725 ),
+//	float2( -0.09418410, -0.92938870 ), 
+//	float2(  0.34495938,  0.29387760 ),
+//	float2( -0.91588581,  0.45771432 ), 
+//	float2( -0.81544232, -0.87912464 ),
+//	float2( -0.38277543,  0.27676845 ), 
+//	float2(  0.97484398,  0.75648379 ),
+//	float2(  0.44323325, -0.97511554 ), 
+//	float2(  0.53742981, -0.47373420 ),
+//	float2( -0.26496911, -0.41893023 ), 
+//	float2(  0.79197514,  0.19090188 ),
+//	float2( -0.24188840,  0.99706507 ), 
+//	float2( -0.81409955,  0.91437590 ),
+//	float2(  0.19974126,  0.78641367 ),
+//	float2(  0.14383161, -0.14100790 )
+//); 
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	// load the mask texture
+	float4 mask = tex2D( samp2, fragment.texcoord0.xy );
+
+	// load the filtered normal map and convert to -1 to 1 range
+	float4 normalVec = tex2D( samp1, fragment.texcoord0.xy ) * 2.0f - 1.0f;
+	normalVec.xyz = normalize( normalVec.wyz );
+	
+	// Fresnel
+	float Fresnel = 1.0 - saturate( dot3( normalVec.xyz, -normalize( fragment.texcoord4.xyz ) ) ); 
+	Fresnel = pow( Fresnel, fragment.texcoord2.x ) * fragment.texcoord2.y + fragment.texcoord2.z; 
+	
+	float2 viewNormal;
+	viewNormal.x = dot3( normalVec.xyz, fragment.texcoord5 );
+	viewNormal.y = dot3( normalVec.xyz, fragment.texcoord6 );
+	// viewNormal.z = dot3( normalVec.xyz, fragment.texcoord7 );
+	
+	// calculate the screen texcoord in the 0.0 to 1.0 range
+	float2 scale = min( fragment.texcoord1.xy / fragment.texcoord1.ww, float2( 0.05, 0.01 ) );
+	float2 mins = float2( rpWindowCoord.xy * 4 );
+	float2 maxs = 1 - mins;
+	float2 screenTC = vposToScreenPosTexCoord( fragment.position.xy );
+	screenTC += ( viewNormal.xy * scale.xx );
+	screenTC = max( min( screenTC, maxs ), mins );
+	float4 color = tex2D( samp0, screenTC );
+	
+	// if ( fragment.texcoord1.z > 2 ) {
+	//	for ( int i = 0; i < 16; i++ ) {
+		//	float2 uv = screenTC + poisson16[ i ].xy * scale.yy;
+			//color += tex2D( samp0, max( min( uv, maxs ), mins ) );
+		//}
+		//color = color / 17;
+	// } else if ( fragment.texcoord1.z > 1 ) {
+		// for ( int i = 0; i < 12; i++ ) {
+			// float2 uv = screenTC + poisson12[ i ].xy * scale.yy;
+			// color += tex2D( samp0, max( min( uv, maxs ), mins ) );
+		// }
+		// color = color / 13;
+	// } else 
+	if ( fragment.texcoord1.z > 0 ) {
+		 for ( int i = 0; i < 8; i++ ) {
+			float2 uv = screenTC + poisson8[ i ].xy * scale.yy;
+			color += tex2D( samp0, max( min( uv, maxs ), mins ) );
+		 }
+		 color = color / 9;
+	 }
+	
+	float3 tint = dot3( color.xyz, float3( 0.212671f, 0.715160f, 0.072169f ) ) * fragment.texcoord3.xyz;
+	color.xyz = lerp( color.xyz, tint.xyz, fragment.texcoord3.w ) * mask.xyz * Fresnel;
+	// color.w = lerp( 0.0, Fresnel, fragment.texcoord2.w );
+	
+	result.color = color;
+	// result.color.xyz  = normalVec.xyz;//color;
+//	result.color.w = dot3( color.xyz, float3( 0.212671f, 0.715160f, 0.072169f ) );
+}

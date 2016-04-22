@@ -1,0 +1,82 @@
+/*
+===========================================================================
+
+Doom 3 BFG Edition GPL Source Code
+Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company. 
+
+This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").  
+
+Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
+
+In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
+
+If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D	samp0 : register(s0); // texture 0 is _currentDepth
+uniform sampler2D	samp1 : register(s1); // texture 1 is main texture
+
+struct PS_IN {
+	float4 position	: VPOS;
+	float2 texCoord	: TEXCOORD0;
+	float4 genParms0	: TEXCOORD1;
+	float4 color		: COLOR0;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+float LinearizeDepth( float inDepth ) {
+	float
+		zNear = 5.0,
+		zFar	= 3000.0;
+	float
+		zN		= 2.0 * inDepth - 1.0;
+
+	return 2.0 * zNear * zFar / ( zFar + zNear - zN * (zFar - zNear));
+}
+
+float GetDepth( sampler2D tex, float2 uv ) {
+	return tex2D( tex, uv ).x;
+}
+
+float GetLinearDepth( sampler2D tex, float2 uv ) {
+	return LinearizeDepth( GetDepth( tex, uv ));
+}
+
+float GetDistanceFalloff( float baseDist, float start, float range ) {
+	return saturate( ( baseDist - start ) / range );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2
+		screenPos = vposToScreenPosTexCoord( fragment.position.xy );
+	float
+		d = GetLinearDepth( samp0, screenPos ),
+		d2 = LinearizeDepth( fragment.position.z );
+	float4
+		texSample = tex2D( samp1, fragment.texCoord );
+	float4
+		outColor;
+		
+	outColor = texSample * fragment.color;
+	outColor.a *= saturate( ( d - d2 ) * fragment.genParms0.x );
+
+	result.color = outColor;
+}

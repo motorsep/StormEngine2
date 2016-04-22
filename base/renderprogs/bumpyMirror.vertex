@@ -1,0 +1,91 @@
+/*
+===========================================================================
+
+Doom 3 BFG Edition GPL Source Code
+Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company. 
+
+This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").  
+
+Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
+
+In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
+
+If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform matrices_ubo { float4 matrices[408]; };
+
+uniform float4 rpUser0 : register(c128); // x = deform scale, y = blur scale
+uniform	float4 rpUser1 : register(c129); // x = Fresnel exponent, y = Fresnel scale, z = Fresnel bias, w = reflection blend
+uniform	float4 rpUser2 : register(c130); // RGB = tint color, A = tint lerp
+
+struct VS_IN {
+	float4 position : POSITION;
+	float2 texcoord : TEXCOORD0;
+	float4 normal : NORMAL;
+	float4 tangent : TANGENT;
+	float4 color : COLOR0;
+	float4 color2 : COLOR1;
+};
+
+struct VS_OUT {
+	float4 position		: POSITION;
+	float4 texcoord0	: TEXCOORD0;
+	float4 texcoord1	: TEXCOORD1;
+	float4 texcoord2	: TEXCOORD2;
+	float4 texcoord3	: TEXCOORD3;
+	float4 texcoord4	: TEXCOORD4;
+	float4 texcoord5	: TEXCOORD5;
+	float4 texcoord6	: TEXCOORD6;
+	float4 texcoord7	: TEXCOORD7;
+};
+
+void main( VS_IN vertex, out VS_OUT result ) {
+
+	#include "skinning.inc"
+
+	// texture 0 takes the texture coordinates unmodified
+	result.texcoord0 = float4( vertex.texcoord.xy, 0, 0 );
+
+	result.texcoord1 = rpUser0;
+	result.texcoord1.w = dot4( vertex.position, rpMVPmatrixW );
+	
+	result.texcoord2 = rpUser1;
+	result.texcoord3 = rpUser2;
+
+	float4 normal = vertex.normal * 2.0 - 1.0;
+	float4 tangent = vertex.tangent * 2.0 - 1.0;
+	float3 binormal = cross( normal.xyz, tangent.xyz ) * tangent.w;
+	
+	float4 viewVec = rpLocalViewOrigin - vertex.position;
+	result.texcoord4.x = dot3( viewVec, tangent );
+	result.texcoord4.y = dot3( viewVec, binormal );
+	result.texcoord4.z = dot3( viewVec, normal );
+
+	result.texcoord5.x = dot3( tangent, rpMVPmatrixX );
+	result.texcoord5.y = dot3( binormal, rpMVPmatrixX );
+	result.texcoord5.z = dot3( normal, rpMVPmatrixX );
+	
+	result.texcoord6.x = dot3( tangent, rpMVPmatrixY );
+	result.texcoord6.y = dot3( binormal, rpMVPmatrixY );
+	result.texcoord6.z = dot3( normal, rpMVPmatrixY );
+	
+	result.texcoord7.x = dot3( tangent, rpMVPmatrixZ );
+	result.texcoord7.y = dot3( binormal, rpMVPmatrixZ );
+	result.texcoord7.z = dot3( normal, rpMVPmatrixZ );
+}

@@ -1,0 +1,366 @@
+/*
+===========================================================================
+
+Doom 3 BFG Edition GPL Source Code
+Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company. 
+Copyright (C) 2013-2014 Robert Beckebans
+
+This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").  
+
+Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
+
+In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
+
+If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+#define SAMPLE_COUNT 12
+
+const half diffuseScale = 5.2; // 8.1
+const half diffuseBias = -0.5; // -0.1 -1.5 
+const half softScale = 0.55; // 0.4
+const half softBias = 0.3; // 0.6
+
+uniform sampler2D				samp0 : register(s0); // texture 1 is the per-surface bump map
+uniform sampler2D				samp1 : register(s1); // texture 2 is the light falloff texture
+uniform sampler2D				samp2 : register(s2); // texture 3 is the light projection texture
+uniform sampler2D				samp3 : register(s3); // texture 4 is the per-surface diffuse map
+uniform sampler2D				samp4 : register(s4); // texture 5 is the per-surface specular map
+uniform sampler2DArrayShadow	samp5 : register(s5); // texture 6 is the shadowmap array
+uniform sampler2D				samp6 : register(s6); // texture 7 is the jitter texture
+uniform sampler2D				samp7 : register(s7); // texture 8 is the per-surface gloss map
+
+
+
+struct PS_IN
+{
+	half4 position		: VPOS;
+	half4 texcoord0		: TEXCOORD0_centroid;
+	half4 texcoord1		: TEXCOORD1_centroid;
+	half4 texcoord2		: TEXCOORD2_centroid;
+	half4 texcoord3		: TEXCOORD3_centroid;
+	half4 texcoord4		: TEXCOORD4_centroid;
+	half4 texcoord5		: TEXCOORD5_centroid;
+	half4 texcoord6		: TEXCOORD6_centroid;
+	half4 texcoord7		: TEXCOORD7_centroid;
+	half4 texcoord8		: TEXCOORD8_centroid;
+	half4 texcoord9		: TEXCOORD9_centroid;
+	half4 texcoord10	: TEXCOORD10_centroid;
+	half4 color			: COLOR0;
+};
+
+struct PS_OUT
+{
+	half4 color : COLOR;
+};
+
+#ifdef SHADOW_MAPPING
+float Shadowmap_Sample(sampler2DArrayShadow Texture_Shadowmap, float4 shadowmaptc, float4 TexelScale)
+{
+# define texval(u, v) texture(Texture_Shadowmap, float4((center.x + u) * TexelScale.x, (center.y + v) * TexelScale.y, center.z, center.w))
+	float4 center = shadowmaptc.xyzw + float4(-0.5, -0.5, 0.0, 0.0);
+	//return texval(0.0, 0.0);
+	float2 offset = fract(center.xy);
+	center.xy = floor(center.xy);
+	float4 row1 = float4(texval(-1.0, -1.0), texval( 0.0, -1.0), texval( 1.0, -1.0), texval( 2.0, -1.0));
+	float4 row2 = float4(texval(-1.0,  0.0), texval( 0.0,  0.0), texval( 1.0,  0.0), texval( 2.0,  0.0));
+	float4 row3 = float4(texval(-1.0,  1.0), texval( 0.0,  1.0), texval( 1.0,  1.0), texval( 2.0,  1.0));
+	float4 row4 = float4(texval(-1.0,  2.0), texval( 0.0,  2.0), texval( 1.0,  2.0), texval( 2.0,  2.0));
+	float4 cols = row2 + row3 + mix(row1, row4, offset.y);
+	return dot(mix(cols.xyz, cols.yzw, offset.x), vec3(1.0/9.0));
+}
+#endif
+
+void main( PS_IN fragment, out PS_OUT result )
+{
+	half4 bumpMap =			tex2D( samp0, fragment.texcoord1.xy );
+	half4 lightFalloff =	idtex2Dproj( samp1, fragment.texcoord2 );
+	half4 lightProj	=		idtex2Dproj( samp2, fragment.texcoord3 );
+	half4 YCoCG =			tex2D( samp3, fragment.texcoord4.xy );
+	half4 specMap =			tex2D( samp4, fragment.texcoord5.xy );
+	half4 glossMap =		tex2D( samp7, fragment.texcoord10.xy );
+
+	half3 lightVector = normalize( fragment.texcoord0.xyz );
+	half3 diffuseMap = ConvertYCoCgToRGB( YCoCG );
+
+	half3 localNormal;
+	localNormal.xy = bumpMap.wy - 0.5; 
+	localNormal.z = sqrt( abs( dot( localNormal.xy, localNormal.xy ) - 0.25 ) );
+	localNormal = normalize( localNormal );
+
+	const half specularPower = glossMap.x * 32; // default value comes out to be pow(n,15) this way
+	half hDotN = saturate( dot3( normalize( fragment.texcoord6.xyz ), localNormal ) );
+	half3 specularContribution = _half3( pow( hDotN, specularPower ) ) ;
+
+	half3 diffuseColor = diffuseMap.xyz * rpDiffuseModifier.xyz;
+	half3 specularColor = specMap.xyz * specularContribution * rpSpecularModifier.xyz;
+
+	half mainShade = saturate( dot3( lightVector, localNormal ));
+
+	half softShade = saturate( mainShade * softScale + softBias );
+	half finalShade = saturate( mainShade * diffuseScale + diffuseBias ) * softShade;
+
+	half3 lightColor = finalShade * lightProj.xyz * lightFalloff.xyz;
+
+#if defined( SHADOW_MAPPING )
+	//
+	// shadow mapping
+	//
+
+	const float bias = 0.000035;
+	//const float bias = 0.0000;
+	float4 shadowMatrixX;
+	float4 shadowMatrixY;
+	float4 shadowMatrixZ;
+	float4 shadowMatrixW;
+	float4 shadowTexcoord;
+	float4 modelPosition = float4( fragment.texcoord7.xyz, 1.0 );
+	shadowTexcoord.xyz =
+		float3( dot4( modelPosition, rpShadowMatrix0X ),
+				dot4( modelPosition, rpShadowMatrix0Y ),
+				dot4( modelPosition, rpShadowMatrix0Z ) ) / 
+				dot4( modelPosition, rpShadowMatrix0W );
+	shadowTexcoord.w =                             0.0f;
+
+#if defined( LIGHT_POINT )
+	float3 toLightGlobal = normalize( fragment.texcoord8.xyz );
+	
+	float axis[6];
+	axis[0] = -toLightGlobal.x;
+	axis[1] =  toLightGlobal.x;
+	axis[2] = -toLightGlobal.y;
+	axis[3] =  toLightGlobal.y;
+	axis[4] = -toLightGlobal.z;
+	axis[5] =  toLightGlobal.z;
+	float best = axis[0];
+	if( best < axis[1] )
+	{
+		best = axis[1];
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix1X ),
+			        dot4( modelPosition, rpShadowMatrix1Y ),
+			        dot4( modelPosition, rpShadowMatrix1Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix1W );
+		shadowTexcoord.w =                             1.0f;
+	}
+	if( best < axis[2] )
+	{
+		best = axis[2];
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix2X ),
+			        dot4( modelPosition, rpShadowMatrix2Y ),
+			        dot4( modelPosition, rpShadowMatrix2Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix2W );
+		shadowTexcoord.w =                             2.0f;
+	}
+	if( best < axis[3] )
+	{
+		best = axis[3];
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix3X ),
+			        dot4( modelPosition, rpShadowMatrix3Y ),
+			        dot4( modelPosition, rpShadowMatrix3Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix3W );
+		shadowTexcoord.w =                             3.0f;
+	}
+	if( best < axis[4] )
+	{
+		best = axis[4];
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix4X ),
+			        dot4( modelPosition, rpShadowMatrix4Y ),
+			        dot4( modelPosition, rpShadowMatrix4Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix4W );
+		shadowTexcoord.w =                             4.0f;
+	}
+	if( best < axis[5] )
+	{
+		best = axis[5];
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix5X ),
+			        dot4( modelPosition, rpShadowMatrix5Y ),
+			        dot4( modelPosition, rpShadowMatrix5Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix5W );
+		shadowTexcoord.w =                             5.0f;
+	}
+
+#endif // #if defined( POINTLIGHT )
+
+#if defined( LIGHT_PARALLEL )
+	
+	float viewZ = -fragment.texcoord9.z;
+
+	if( viewZ < rpCascadeDistances[0] )
+	{
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix0X ),
+			        dot4( modelPosition, rpShadowMatrix0Y ),
+			        dot4( modelPosition, rpShadowMatrix0Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix0W );
+		shadowTexcoord.w =                             0.0f;
+	}
+	else if( viewZ < rpCascadeDistances[1] )
+	{
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix1X ),
+			        dot4( modelPosition, rpShadowMatrix1Y ),
+			        dot4( modelPosition, rpShadowMatrix1Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix1W );
+		shadowTexcoord.w =                             1.0f;
+	}
+	else if( viewZ < rpCascadeDistances[2] )
+	{
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix2X ),
+			        dot4( modelPosition, rpShadowMatrix2Y ),
+			        dot4( modelPosition, rpShadowMatrix2Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix2W );
+		shadowTexcoord.w =                             2.0f;
+	}
+	else if( viewZ < rpCascadeDistances[3] )
+	{
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix3X ),
+			        dot4( modelPosition, rpShadowMatrix3Y ),
+			        dot4( modelPosition, rpShadowMatrix3Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix3W );
+		shadowTexcoord.w =                             3.0f;
+	}
+	else
+	{
+		shadowTexcoord.xyz =
+			float3( dot4( modelPosition, rpShadowMatrix4X ),
+			        dot4( modelPosition, rpShadowMatrix4Y ),
+			        dot4( modelPosition, rpShadowMatrix4Z ) ) / 
+			        dot4( modelPosition, rpShadowMatrix4W );
+		shadowTexcoord.w =                             4.0f;
+	}
+#endif
+
+#if 0
+	result.color.xyz = saturate( float3( shadowTexcoord.z, texture( samp5, shadowTexcoord.xywz ), 0.0 ) );
+	result.color.w = 1.0;
+	return;
+#endif
+
+#if 0
+	result.color.xyz = saturate( float3( shadowTexcoord.z, shadowTexcoord.z, shadowTexcoord.z ) );
+	//result.color.xyz = saturate( float3( shadowTexcoord.x, shadowTexcoord.y, shadowTexcoord.z ) );
+	//result.color.xyz = saturate( modelPosition.xyz * 0.005 + float3( 0.5, 0.5, 0.5 ) );
+	//result.color.xyz = saturate( float3 (
+	//			dot4( modelPosition, rpShadowMatrix0X ) * 0.5 + 0.5,
+	//			dot4( modelPosition, rpShadowMatrix0Y ) * 0.5 + 0.5,
+	//			dot4( modelPosition, rpShadowMatrix0Z ) * 0.5 + 0.5 ) );
+	result.color.w = 1.0;
+	return;
+#endif
+
+	shadowTexcoord.z -= bias;
+
+	float shadow = 0.0;
+	float shadowTexelSize = rpScreenCorrectionFactor.z * rpJitterTexScale.x;
+#if 0
+	// single tap
+	shadow = texture( samp5, shadowTexcoord.xywz * 1.0 );
+	//shadow = saturate(shadowTexcoord.z);
+#endif
+#if 0
+	// 16-tap PCF (Lee Salzman's method)
+
+	float4 texelScale = float4( shadowTexelSize, shadowTexelSize, 1.0, 1.0 );
+	float4 invTexelScale = float4( 1.0 / shadowTexelSize, 1.0 / shadowTexelSize, 1.0, 1.0 );
+	shadow = Shadowmap_Sample( samp5, shadowTexcoord.xywz * invTexelScale, texelScale );
+#endif
+#if 0
+	// 16-tap jittered
+	float4 base = shadowTexcoord;
+	
+	base.xy += rpJitterTexScale.xy * -0.5;
+	
+	//float stepSize = 1.0 / 16.0;
+	float numSamples = rpScreenCorrectionFactor.w;
+	float stepSize = 1.0 / numSamples;
+	
+	float4 jitterTC = ( fragment.position * rpScreenCorrectionFactor ) + rpJitterTexOffset;
+	for( float i = 0.0; i < numSamples; i += 1.0 )
+	{
+		float4 jitter = base + tex2D( samp6, jitterTC.xy ) * rpJitterTexScale;
+		jitter.zw = shadowTexcoord.zw;
+	
+		shadow += texture( samp5, jitter.xywz );
+		jitterTC.x += stepSize;
+	}
+	
+	shadow *= stepSize;
+#endif
+#if 1
+	// 12-tap poisson disc
+	const float2 poissonDisk[12] = float2[](
+	float2(0.6111618, 0.1050905),
+	float2(0.1088336, 0.1127091),
+	float2(0.3030421, -0.6292974),
+	float2(0.4090526, 0.6716492),
+	float2(-0.1608387, -0.3867823),
+	float2(0.7685862, -0.6118501),
+	float2(-0.1935026, -0.856501),
+	float2(-0.4028573, 0.07754025),
+	float2(-0.6411021, -0.4748057),
+	float2(-0.1314865, 0.8404058),
+	float2(-0.7005203, 0.4596822),
+	float2(-0.9713828, -0.06329931) );
+	
+	// RB: casting a float to int and using it as index can really kill the performance ...
+	float numSamples = SAMPLE_COUNT; //int(rpScreenCorrectionFactor.w);
+	float stepSize = 1.0 / numSamples;
+	
+	float4 jitterTC = ( fragment.position * rpScreenCorrectionFactor ); // + rpJitterTexOffset; // enable/disable + rpJitterTexOffset to have poisson disk rotating/be static
+	float4 random = tex2D( samp6, jitterTC.xy * 1.0 ) * PI;
+	//float4 random = fragment.position;
+	
+	float2 rot;
+	rot.x = cos( random.x );
+	rot.y = sin( random.x );
+	
+    for( int i = 0; i < SAMPLE_COUNT; i++ )
+    {
+        float2 jitter = poissonDisk[i];
+		float2 jitterRotated;
+		jitterRotated.x = jitter.x * rot.x - jitter.y * rot.y;
+		jitterRotated.y = jitter.x * rot.y + jitter.y * rot.x;
+        
+		float4 shadowTexcoordJittered = float4( shadowTexcoord.xy + jitterRotated * shadowTexelSize, shadowTexcoord.z, shadowTexcoord.w );
+       
+        shadow += texture( samp5, shadowTexcoordJittered.xywz * 1.0);
+    }
+
+   shadow *= stepSize;
+#endif
+
+#if defined( LIGHT_PARALLEL )
+  if(shadowTexcoord.x * 1 <= 0.01 || shadowTexcoord.x * 1 >= 0.99 || shadowTexcoord.y * 1 <= 0.01 || shadowTexcoord.y * 1 >= 0.99)
+  {
+    shadow = 1;
+  }
+#endif
+
+	result.color.xyz = ( diffuseColor + specularColor ) * lightColor * fragment.color.xyz * shadow;
+#else
+	result.color.xyz = ( diffuseColor + specularColor ) * lightColor * fragment.color.xyz;
+#endif
+	result.color.w = 1.0;
+}

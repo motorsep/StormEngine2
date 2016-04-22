@@ -1,0 +1,9 @@
+// Copyright (C) 2014 Forest Wroncy-Hale
+// this file is just glue to reference the ubershader with appropriate flags
+#define USE_GPU_SKINNING
+#define SHADOW_MAPPING
+//#define LIGHT_PARALLEL
+//#define LIGHT_POINT
+#define LIGHT_SPOT
+#include "interaction_uber.pixel"
+
