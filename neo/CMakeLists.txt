@@ -11,7 +11,8 @@ option(MONOLITH
 		
 option(OPENAL# Include the libs subdirectory. This will allow the compiler to simplify the include process.
 		"Use OpenAL soft instead of XAudio2" OFF)
-
+option(FORCE_WIN7_COMPAT # This will force the headers to play nice for pre-Windows 8 builds.
+		"Force Windows 7 compatibility." OFF)
 if(UNIX)
 	set(OPENAL TRUE)
 endif()
@@ -159,12 +160,20 @@ elseif(MSVC)
 	
 	# Tell MSVC that we only want Windows 7 Or newer.
 	# More Information: https://msdn.microsoft.com/en-us/library/aa383745%28VS.85%29.aspx
-	add_definitions(
-		-DNTDDI_VERSION=0x06010000
-		-D_WIN32_WINNT=0x0601
-		-DWINVER=0x0601
-		)
-	
+	if(FORCE_WIN7_COMPAT)
+		add_definitions(
+			-DNTDDI_VERSION=0x06010000
+			-D_WIN32_WINNT=0x0601
+			-DWINVER=0x0601
+			)
+	else()
+		# Windows 8 or newer.
+		add_definitions(
+			-DNTDDI_VERSION=0x06020000
+			-D_WIN32_WINNT=0x0602
+			-DWINVER=0x0602
+			)
+	endif()
 	add_definitions(-DWIN32 
 					-D_WINDOWS
 					-D_CRT_SECURE_NO_DEPRECATE
@@ -1142,8 +1151,18 @@ if(MSVC)
 		# endif()
 		
 	# else()
-	find_package(DirectX REQUIRED)
-	include_directories(${DirectX_INCLUDE_DIR})
+
+	if(DEFINED MSVC_VERSION AND NOT ${MSVC_VERSION} LESS 1700)
+		set(USE_WINSDK_DIRECTX TRUE)
+	endif()
+	if(NOT USE_WINSDK_DIRECTX)
+		# This will Search for the DirectX SDK on older versions of Visual Studio.
+		find_package(DirectX REQUIRED)
+		include_directories(${DirectX_INCLUDE_DIR})
+	else()
+		set(DirectX_LIBRARIES dinput8 dsound dxguid Xinput xaudio2)
+	endif()
+
 	#endif()
 	
 	if(OPENAL)
