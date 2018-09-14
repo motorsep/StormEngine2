@@ -91,6 +91,10 @@ template<class T> T	Min( T x, T y )
 
 class idFile;
 
+#if (1900 <= _MSC_VER) || (199711L < __cplusplus)
+// Use nullptr from C++11
+#include <cstddef>
+#else
 struct idNullPtr
 {
 	// one pointer member initialized to zero so you can pass NULL as a vararg
@@ -120,6 +124,7 @@ struct idNullPtr
 // C99 Standard
 #ifndef nullptr
 #define nullptr	idNullPtr()
+#endif
 #endif
 
 #ifndef BIT
