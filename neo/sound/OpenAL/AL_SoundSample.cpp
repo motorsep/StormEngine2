@@ -626,7 +626,7 @@ void idSoundSample_OpenAL::FreeData()
 	playBegin = 0;
 	playLength = 0;
 	
-	if( alIsBuffer( openalBuffer ) )
+	if( openalBuffer != 0 && alIsBuffer( openalBuffer ) )
 	{
 		CheckALErrors();
 		
