@@ -208,10 +208,25 @@ bulk of the codebase, so it is the best place for analyze pragmas.
 // win32 needs this, but 360 doesn't
 #pragma warning( disable: 6540 )	// warning C6540: The use of attribute annotations on this function will invalidate all of its existing __declspec annotations [D:\tech5\engine\engine-10.vcxproj]
 
+#if _MSC_VER < 1900
+/* Visual Studio 2015 or newer has this warning enabled by default.*/
+#pragma warning(enable: 4005)  /* macro redefinition */
+#endif
+#if _MSC_VER >= 1900
+//  non-member operator new or delete functions may not be declared inline
+#pragma warning( disable: 4595 )
+#endif
+
 
 // checking format strings catches a LOT of errors
 #include <CodeAnalysis\SourceAnnotations.h>
+
+
+#if _MSC_VER >= 1600
+#define	VERIFY_FORMAT_STRING	_SA_annotes1(SAL_IsFormatString, "printf")
+#else
 #define	VERIFY_FORMAT_STRING	[SA_FormatString(Style="printf")]
+#endif
 // DG: alternative for GCC with attribute (NOOP for MSVC)
 #define ATTRIBUTE_PRINTF(STRIDX, FIRSTARGIDX)
 

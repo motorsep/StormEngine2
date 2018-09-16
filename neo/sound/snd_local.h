@@ -167,9 +167,6 @@ struct AudioDevice
 #endif
 // RB end
 
-#ifdef _MSC_VER 
-#pragma warning( enable: 4005 )  /* macro redefinition */
-#endif
 #include "XAudio2/XA2_SoundSample.h"
 #include "XAudio2/XA2_SoundVoice.h"
 #include "XAudio2/XA2_SoundHardware.h"
