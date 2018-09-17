@@ -129,6 +129,8 @@ elseif(MSVC)
 	if(USE_MFC_TOOLS)
 		add_definitions(-D_AFXDLL)
 		add_definitions(-DUSE_MFC_TOOLS)
+		# Do not Warn about MFC.
+		add_definitions(-DNO_WARN_MBCS_MFC_DEPRECATION)
 		
 		# 0: Use Standard Windows Libraries
 		# 1: Use MFC in a Static Library
@@ -180,6 +182,7 @@ elseif(MSVC)
 					-D_CRT_NONSTDC_NO_DEPRECATE
 					-D_CRT_SECURE_NO_WARNINGS
 					-D_MBCS
+					-DSAL_NO_ATTRIBUTE_DECLARATIONS
 					#-DUSE_OPENAL
 					-DUSE_EXCEPTIONS)
 					
@@ -1164,7 +1167,7 @@ if(MSVC)
 	endif()
 
 	#endif()
-	
+
 	if(OPENAL)
 		add_definitions(-DUSE_OPENAL)
 	
