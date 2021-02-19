@@ -121,6 +121,30 @@ KNOWN ISSUES
 
 - Game crashes when saving/loading game on maps with vehicles
 
+AUTHORING OF BITMAP FONTS
+-------------------------
+
+Generation of new bitmap fonts is somewhat convoluted process, no thanks to Doom 3 BFG engine. To be able to generate engine compliant bitmap fonts, please follow instructions below. The process used to work smoothly back in the days and hasn't been tested in 2021.
+
+Download BFGFont app (based on https://github.com/Zbyl/BFGFontTool by Zbyl): https://drive.google.com/file/d/1P-o0gyZocH5oK_GIpT7TAr-Zzrs6w4Dl/view?usp=sharing
+
+1. Install your favourite font (licensed or open source licensed; beware of "free" fonts found on the Net) into the system OS.
+ 
+2. Generate bitmap font and image atlas using BMFont app (Bitmap Font Generator; v1.13 was tested) using settings file located in utils/BFGFont/bmfont_settings/ (don't forget to choose font)
+ 
+3. Save bitmap font as "48", rename 48_0.tga into 48.tga and edit 48.fnt to adjust image name.
+ 
+4. If there are 48_1, etc. image atlases present, adjust image resolution in BMFont settings - there can only be one atlas.
+ 
+5. Run BFGFontTool 1.2 from utils/BFGFont/ and generate BFG font using .fnt file we just created 
+ 
+6. Copy 48.dat, 48.tga, fontimage_12, _24, _48 into base/newfonts/fontname/ (fontname can contain smallletters, numbers and _ )
+ 
+7. Rename fontimage_12, _24, _48 into old_12, _24, _48
+ 
+8. Edit base/strings/english.lang and add definition for new fonts at the beginning of the file, after "#font_" line. For example, "#font_ubu"	"ubuntu". That will remap
+font definition in .gui UI from [font "fonts/ubu"] to a new font "ubuntu". Note that "#font_XXXXX" seems to be currently limited to 5 symbols after "_".
+
 CODE LICENSE EXCEPTIONS - The parts that are not covered by the GPL:
 --------------------------------------------------------------------
 
