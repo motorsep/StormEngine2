@@ -56,7 +56,7 @@ bool rvDebuggerQuickWatchDlg::DoModal ( rvDebuggerWindow* window, int callstackD
 	mDebuggerWindow = window;
 	mVariable       = variable?variable:"";
 	
-	DialogBoxParam ( window->GetInstance(), MAKEINTRESOURCE(IDD_DBG_QUICKWATCH), window->GetWindow(), DlgProc, (LONG)this );
+	DialogBoxParam ( window->GetInstance(), MAKEINTRESOURCE(IDD_DBG_QUICKWATCH), window->GetWindow(), DlgProc, (LONG_PTR)this );
 
 	return true;
 }

@@ -95,7 +95,7 @@ void rvGEStatusBar::Update ( void )
 	{
 		parts[0] = -1;
 
-		SendMessage ( mWnd, SB_SETPARTS, 1, (LONG)parts );
+		SendMessage ( mWnd, SB_SETPARTS, 1, (LONG_PTR)parts );
 		SendMessage ( mWnd, SB_SETTEXT, 1, (LPARAM) "" );
 	}
 	else
@@ -109,7 +109,7 @@ void rvGEStatusBar::Update ( void )
 		parts[3] = parts[2] + 40;
 		parts[4] = -1;
 
-		SendMessage ( mWnd, SB_SETPARTS, 5, (LONG)parts );
+		SendMessage ( mWnd, SB_SETPARTS, 5, (LONG_PTR)parts );
 		SendMessage ( mWnd, SB_SETTEXT, 0, (LPARAM) "" );
 		SendMessage ( mWnd, SB_SETTEXT, 1, (LPARAM) va(" Tris: %d", mTriangles ) );
 		SendMessage ( mWnd, SB_SETTEXT, 2, (LPARAM) va(" Zoom: %d%%", mZoom ) );

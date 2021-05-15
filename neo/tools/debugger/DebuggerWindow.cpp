@@ -1038,11 +1038,11 @@ int rvDebuggerWindow::HandleCommand ( WPARAM wparam, LPARAM lparam )
 			
 		case IDC_DBG_SCRIPT:
 		{
-			RECT	t;					
-			LONG	num;
-			LONG	dem;
+			RECT		t;					
+			LONG_PTR	num;
+			LONG_PTR	dem;
 								
-			SendMessage ( mWndScript, EM_GETZOOM, (LONG)&num, (LONG)&dem );
+			SendMessage ( mWndScript, EM_GETZOOM, (LONG_PTR)&num, (LONG_PTR)&dem );
 			if ( num != mZoomScaleNum || dem != mZoomScaleDem )
 			{
 				mZoomScaleNum = num;

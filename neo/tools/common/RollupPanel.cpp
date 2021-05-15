@@ -181,7 +181,7 @@ int rvRollupPanel::InsertItem ( const char* caption, HWND dialog, bool autoDestr
 
 	// Attach item to button through user data
 	SetWindowLongPtr( button, GWLP_USERDATA, (LONG_PTR)item );
-	SetWindowLong ( button, GWL_ID,			index );
+	SetWindowLongPtr( button, GWL_ID,			index );
 
 	// Subclass dialog
 	SetWindowLongPtr( dialog, DWLP_DLGPROC, (LONG_PTR)DialogProc );
