@@ -356,7 +356,7 @@ int nDWidth,nDHeight;
 	yErr = nDHeight%yRatio;
 
 unsigned char *buffer,*srcPtr,*destPtr,*ptr;
-int i,j,k;
+	int i, j, k = 0;
 	
 	buffer = (unsigned char *)malloc(nDWidth+20);
 	if(!buffer) return;
@@ -709,7 +709,6 @@ int nBits;
 	default:
 		return FALSE;
 	}
-	return FALSE;
 }
 
 /*
@@ -814,7 +813,7 @@ unsigned char cols[256];
 
 int CDIB::ClosestColor(RGBQUAD *pRgb)
 {
-unsigned int dist=BIG_DISTANCE,i,d,c;
+	unsigned int dist = BIG_DISTANCE, i, d, c = 0;
 RGBQUAD *pQuad=m_pRGB;
 unsigned int pSize=GetPaletteSize();
 	for(i=0; i < pSize;i++)

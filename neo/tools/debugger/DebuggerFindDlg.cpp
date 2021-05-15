@@ -54,7 +54,7 @@ Launch the dialog
 */
 bool rvDebuggerFindDlg::DoModal ( rvDebuggerWindow* parent )
 {	
-	if ( DialogBoxParam ( parent->GetInstance(), MAKEINTRESOURCE(IDD_DBG_FIND), parent->GetWindow(), DlgProc, (LONG)this ) )
+	if ( DialogBoxParam ( parent->GetInstance(), MAKEINTRESOURCE(IDD_DBG_FIND), parent->GetWindow(), DlgProc, (LONG_PTR)this ) )
 	{
 		return true;
 	}
