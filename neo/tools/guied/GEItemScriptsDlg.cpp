@@ -356,7 +356,7 @@ INT_PTR CALLBACK GEItescriptsDlg_WndProc ( HWND hwnd, UINT msg, WPARAM wParam, L
 	switch ( msg )
 	{
 		case WM_INITDIALOG:
-			SetWindowLong ( hwnd, GWLP_USERDATA, lParam );
+			SetWindowLongPtr ( hwnd, GWLP_USERDATA, lParam );
 			GEItescriptsDlg_Init ( hwnd , 0);
 
 			gApp.GetOptions().GetWindowPlacement ( "scripts", hwnd );
@@ -400,7 +400,7 @@ HWND GEItemScriptsDlg_DoModal(HWND parent, idWindow* window)
 	HWND hWnd = CreateDialog(gApp.GetInstance(), MAKEINTRESOURCE(IDD_GUIED_SCRIPTS), parent, GEItescriptsDlg_WndProc);
 	
 	//HWND script = GetDlgItem(hWnd, IDC_GUIED_SCRIPT);
-	//SetWindowLong(script, GWL_WNDPROC, (LONG)GEScriptEdit_WndProc);
+	//SetWindowLongPtr(script, GWLP_WNDPROC, (LONG_PTR)GEScriptEdit_WndProc);
 
 	gApp.GetOptions().GetWindowPlacement("scripts", hWnd);
 
