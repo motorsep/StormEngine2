@@ -169,8 +169,6 @@ void CPropTreeItemCheck::OnBnKillfocus()
 
 void CPropTreeItemCheck::OnBnClicked()
 {
-	int state = GetCheck();
-
 	SetCheckState(GetCheck() == BST_CHECKED ? FALSE : TRUE);
 	CommitChanges();
 }
