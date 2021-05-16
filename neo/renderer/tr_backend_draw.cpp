@@ -1793,18 +1793,13 @@ static void RB_RenderInteractions( const drawSurf_t* surfList, const viewLight_t
 						{
 							RB_DrawSingleInteraction( &inter );
 						}
-						inter.specularImage = surfaceStage->texture.image;
-						inter.vertexColor = surfaceStage->vertexColor;
-						// icecoldduke noSpecular fix 05-16-2021
+						// icecoldduke + Dark One noSpecular fix 05-16-2021
 						if (!vLight->lightDef->parms.noSpecular) 
 						{
-							RB_SetupInteractionStage(surfaceStage, surfaceRegs, specularColor.ToFloatPtr(),
-								inter.specularMatrix, inter.specularColor.ToFloatPtr());
-							inter.specularColor[0] *= lightColor[0];
-							inter.specularColor[1] *= lightColor[1];
-							inter.specularColor[2] *= lightColor[2];
-							inter.specularColor[3] *= lightColor[3];
+							inter.specularImage = surfaceStage->texture.image;
 							inter.vertexColor = surfaceStage->vertexColor;
+							RB_SetupInteractionStage(surfaceStage, surfaceRegs, specularColor.ToFloatPtr(),
+								inter.specularMatrix, inter.specularColor.ToFloatPtr());							
 						} // end
 						break;
 					}
