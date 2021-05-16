@@ -115,6 +115,8 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - Collision fix for large coordinates
 
+- noSpecular option for lights now works (fill lights should use it to avoid unnecessary specular highlights)
+
 
 KNOWN ISSUES
 ------------
