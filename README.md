@@ -140,7 +140,7 @@ A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) 
 - Refine LOD solution (make it a bit more performant; add support for skeletal meshes)
 - Distance culling (not render meshes past certain distance) 
 - Foliage shader with simple wind deformations (including using vertex color to anchor mesh and create gradient rigidity) 
-- Mesh instancing for static meshes (kind like ISM/HISM in UE4)
+- Mesh instancing for static meshes (kinda like ISM/HISM in UE4)
 - AAS on meshes (to be able to have navigation built on mesh terrains)
 - Save/load game multithreading (to eliminate hiccups/freezes when performing saving/loading in-game)
 - Improve Lights Editor to allow spawning/deleting/moving/saving lights in-game
