@@ -123,6 +123,31 @@ KNOWN ISSUES
 
 - Game crashes when saving/loading game on maps with vehicles
 
+A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) )
+---------------------------------------------------------------------------------
+- Fix vehicles (savegame crash fix; networking)
+- 8-way texture blending using vertex colors with transition masking using height maps
+- Equirectangular skybox (in addition to existing 6-image cubemaps)
+- Refine LOD solution (make it a bit more performant; add support for skeletal meshes)
+- Distance culling (not render meshes past certain distance) 
+- Foliage shader with simple wind deformations (including using vertex color to anchor mesh and create gradient rigidity) 
+- Mesh instancing for static meshes (kind like ISM/HISM in UE4)
+- AAS on meshes (to be able to have navigation built on mesh terrains)
+- Save/load game multithreading (to eliminate hiccups/freezes when performing saving/loading in-game)
+- Improve Lights Editor to allow spawning/deleting/moving/saving lights in-game
+- Reverb zones (XAudio2 supports reverb afaik)
+- Native multiplayer coop
+- Headless dedicated server
+- Master server app
+- Improve shadowmapping
+- Replace current texture compressor with fast BC7 compressor
+- Parallax-corrected cubemap reflections (with support for equirectangle textures; or better yet reflection capture entities)
+- SSAO
+- Light shafts
+- Good looking and (relatively) fast POM shader with self-shadowing
+- Volumetric fog supporting shadows
+
+
 AUTHORING OF BITMAP FONTS
 -------------------------
 
