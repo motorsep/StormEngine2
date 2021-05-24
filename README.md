@@ -135,6 +135,7 @@ A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) 
 - AAS on meshes (to be able to have navigation built on mesh terrains)
 - Save/load game multithreading (to eliminate hiccups/freezes when performing saving/loading in-game)
 - Improve Lights Editor to allow spawning/deleting/moving/saving lights in-game
+- DoomScript nativization (optional, to improve performance)
 - Reverb zones (XAudio2 supports reverb afaik)
 - Native multiplayer coop
 - Headless dedicated server
