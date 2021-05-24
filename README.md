@@ -53,6 +53,15 @@ RUNNING ENGINE ON WIN32/WIN64
 
 Note: legal screen is disabled in debug builds. Intro video can be skipped by pressing a key, a gamepad button or moving mouse in any build.
 
+BASE ASSETS PACKAGE (for testing)
+-----------------------------
+
+Base assets package is offered by Yuizaki from idTech4 discord (a mix of Phaeton assets, Yuizaki's assets and assets made by other community member(s) ):
+
+https://drive.google.com/drive/folders/1cyR_csyeDTdZvy2DMIOWG3aQ7aW5h52I?usp=sharing
+
+Note: Commercial use prohibited. Please provide credit if you are going to use these assets in your projects.
+
 OVERALL CHANGES AND ADDITIONAL FEATURES 
 --------------------------------------
 (in addition to existing set of features of the original engine)
