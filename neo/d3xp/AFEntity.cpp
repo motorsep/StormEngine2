@@ -3389,6 +3389,8 @@ void idAFEntity_VehicleSimple_4wd::Spawn( void ) {
 										vehicleSuspensionDamping,
 										vehicleTireFriction );
 
+		wheelConstraints[i] = af.GetPhysics()->GetNumConstraints();
+
 		af.GetPhysics()->AddConstraint( suspension[i] );
 		
 		tempAngles[i] = 0.0f;	// ################## SR
@@ -3418,6 +3420,7 @@ void idAFEntity_VehicleSimple_4wd::Save( idSaveGame *savefile ) const {
    {
       savefile->WriteJoint(wheelJoints[wheel]);
       savefile->WriteFloat(wheelAngles[wheel]);
+	  savefile->WriteString(af.GetPhysics()->GetConstraint(wheelConstraints[wheel])->GetName().c_str());
    }
 }
 
@@ -3434,13 +3437,17 @@ void idAFEntity_VehicleSimple_4wd::Restore( idRestoreGame *savefile )
    {
 	   savefile->ReadJoint(wheelJoints[wheel]);
 	   savefile->ReadFloat(wheelAngles[wheel]);
+	   idStr constraintName;
+	   savefile->ReadString(constraintName);
+
+	   wheelConstraints[wheel] = af.GetPhysics()->GetConstraintId(constraintName.c_str());
 
 	   idVec3 origin;
 	   idMat3 axis;
 	   animator.GetJointTransform( wheelJoints[wheel], 0, origin, axis );
 	   origin = renderEntity.origin + origin * renderEntity.axis;
 
-	   suspension[wheel] = static_cast<idAFConstraint_Suspension *>(af.GetPhysics()->GetConstraint(wheel));
+	   suspension[wheel] = static_cast<idAFConstraint_Suspension *>(af.GetPhysics()->GetConstraint(wheelConstraints[wheel]));
 	   suspension[wheel]->Setup(va("suspension%d", wheel), af.GetPhysics()->GetBody(0), wheelModel);
 	   suspension[wheel]->SetPosition(origin, af.GetPhysics()->GetAxis(0));
 	   	   
@@ -3467,6 +3474,7 @@ void idAFEntity_VehicleSimple_4wd::RecreateDynamicConstraints( idList<idAFConstr
 	int i;
 	for(i=0;i<4;i++) {
          idAFConstraint_Suspension *constraint = new idAFConstraint_Suspension();
+		 constraint->Setup(va("suspension%d", i), NULL, NULL);
          //constraint->physics = af.GetPhysics();
          constraints->Append(constraint);
 		 

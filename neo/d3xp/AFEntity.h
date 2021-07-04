@@ -547,6 +547,7 @@ protected:
 	idAFConstraint_Suspension *	suspension[4];
 	jointHandle_t				wheelJoints[4];
 	float						wheelAngles[4];
+	int						wheelConstraints[4];
 	
 	float						tempAngles[4];	// #### SR
 	idVec3 						wheelorigin[4];	// #### SR
