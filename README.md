@@ -130,11 +130,11 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 KNOWN ISSUES
 ------------
 
-- Game crashes when saving/loading game on maps with vehicles
+- DoomScript debugger doesn't quite work in 64bit build
 
 A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) )
 ---------------------------------------------------------------------------------
-- Fix vehicles (savegame crash fix; networking)
+- ~~Fix vehicles (savegame crash fix; networking)~~
 - 8-way texture blending using vertex colors with transition masking using height maps
 - Equirectangular skybox (in addition to existing 6-image cubemaps)
 - Refine LOD solution (make it a bit more performant; add support for skeletal meshes)
