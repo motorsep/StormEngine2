@@ -149,8 +149,9 @@ A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) 
 - Native multiplayer coop
 - Headless dedicated server
 - Master server app
-- Improve shadowmapping
+- Improve shadowmapping (particularly cascaded shadowmaps on huge levels)
 - Replace current texture compressor with fast BC7 compressor
+- Replace all legacy OpenGL 1.x stuff with OpenGL 3.3 (or whatever base standard is nowadays)
 - Parallax-corrected cubemap reflections (with support for equirectangle textures; or better yet reflection capture entities)
 - SSAO
 - Light shafts
