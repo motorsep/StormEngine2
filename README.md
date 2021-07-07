@@ -157,6 +157,7 @@ A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) 
 - Light shafts
 - Good looking and (relatively) fast POM shader with self-shadowing
 - Volumetric fog supporting shadows
+- Replace SWF renderer with SVG renderer
 
 
 AUTHORING OF BITMAP FONTS
