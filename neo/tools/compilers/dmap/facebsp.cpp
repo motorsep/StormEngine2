@@ -185,7 +185,8 @@ SelectSplitPlaneNum
 ================
 */
 // motorsep 11-27-2014; increased block size to 2048 from 1024
-#define	BLOCK_SIZE	2048
+// motorsep 12-25-2022; increased block size to 2560 from 2048
+#define	BLOCK_SIZE	2560
 
 // motorsep 01-27-2015; reading BLOCK_SIZE from the worldspawn of the map to make it configurable per map
 /*

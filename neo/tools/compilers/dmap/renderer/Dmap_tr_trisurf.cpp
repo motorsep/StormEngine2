@@ -1286,7 +1286,8 @@ void R_DeriveTangentsWithoutNormalsDmap(srfDmapTriangles_t* tri)
 	faceTangents_t	*ft;
 	idDmapDrawVert		*vert;
 
-	faceTangents = (faceTangents_t *)_alloca16(sizeof(faceTangents[0]) * tri->numIndexes / 3);
+	//faceTangents = (faceTangents_t *)_alloca16(sizeof(faceTangents[0]) * tri->numIndexes / 3);
+	faceTangents = (faceTangents_t*)R_FrameAlloc(sizeof(faceTangents[0]) * tri->numIndexes / 3); // avoiding crashes when compiling huge and complex maps with a lot of meshes (or terrain mesh); motorsep (thx Paril) 12/25/2022 
 	R_DeriveFaceTangentsDmap(tri, faceTangents);
 
 	// clear the tangents

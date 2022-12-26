@@ -42,7 +42,7 @@ COMPILING ON WIN32/WIN64 WITH VISUAL C++ 2013/2015 COMMUNITY EDITION
 
 6. Open generated solution, choose solution config (Release, Debug, etc.) and build it
 
-NOTE: both stack sized in the Linker options need to be set to 16Mb (16777216) to be able to compile massive maps with dmap
+NOTE: both stack sizes in the Linker options need to be set to 16Mb (16777216) to be able to compile massive maps with 32bit dmap
 
 RUNNING ENGINE ON WIN32/WIN64
 -----------------------------
