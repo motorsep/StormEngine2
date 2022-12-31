@@ -1245,6 +1245,11 @@ void idMaterial::ParseFragmentMap( idLexer& src, newShaderStage_t* newStage )
 			cubeMap = CF_CAMERA;
 			continue;
 		}
+		if (!token.Icmp("cameraCubeSky")) // motorsep 12-30-2022; to use with cubemaps created from equirectangular panoramas in Bixorama (or perhaps any other similar software)
+		{
+			cubeMap = CF_CAMERA_ALT;
+			continue;
+		}
 		if( !token.Icmp( "nearest" ) )
 		{
 			tf = TF_NEAREST;
@@ -1494,8 +1499,7 @@ void idMaterial::ParseStage( idLexer& src, const textureRepeat_t trpDefault )
 		{
 			ts->texgen = TG_GLASSWARP;
 			continue;
-		}
-		
+		}		
 		if( !token.Icmp( "videomap" ) )
 		{
 			// note that videomaps will always be in clamp mode, so texture
@@ -1518,8 +1522,7 @@ void idMaterial::ParseStage( idLexer& src, const textureRepeat_t trpDefault )
 			ts->cinematic = idCinematic::Alloc();
 			ts->cinematic->InitFromFile( token.c_str(), loop );
 			continue;
-		}
-		
+		}		
 		if( !token.Icmp( "soundmap" ) )
 		{
 			if( !src.ReadToken( &token ) )
@@ -1530,24 +1533,28 @@ void idMaterial::ParseStage( idLexer& src, const textureRepeat_t trpDefault )
 			ts->cinematic = new( TAG_MATERIAL ) idSndWindow();
 			ts->cinematic->InitFromFile( token.c_str(), true );
 			continue;
-		}
-		
+		}		
 		if( !token.Icmp( "cubeMap" ) )
 		{
 			str = R_ParsePastImageProgram( src );
 			idStr::Copynz( imageName, str, sizeof( imageName ) );
 			cubeMap = CF_NATIVE;
 			continue;
-		}
-		
+		}		
 		if( !token.Icmp( "cameraCubeMap" ) )
 		{
 			str = R_ParsePastImageProgram( src );
 			idStr::Copynz( imageName, str, sizeof( imageName ) );
 			cubeMap = CF_CAMERA;
 			continue;
+		}		
+		if (!token.Icmp("cameraCubeSky")) // motorsep 12-30-2022; to use with cubemaps created from equirectangular panoramas in Bixorama (or perhaps any other similar software)
+		{
+			str = R_ParsePastImageProgram(src);
+			idStr::Copynz(imageName, str, sizeof(imageName));
+			cubeMap = CF_CAMERA_ALT;
+			continue;
 		}
-		
 		if( !token.Icmp( "ignoreAlphaTest" ) )
 		{
 			ss->ignoreAlphaTest = true;
@@ -1606,7 +1613,7 @@ void idMaterial::ParseStage( idLexer& src, const textureRepeat_t trpDefault )
 				td = TD_LOWQUALITY_CUBE;
 			}
 			continue;
-		}
+		}		
 		if( !token.Icmp( "nopicmip" ) )
 		{
 			continue;

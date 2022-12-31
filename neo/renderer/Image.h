@@ -87,7 +87,8 @@ typedef enum
 	CF_2D,			// not a cube map
 	CF_NATIVE,		// _px, _nx, _py, etc, directly sent to GL
 	CF_CAMERA,		// _forward, _back, etc, rotated and flipped as needed before sending to GL
-	CF_2D_ARRAY		// not a cube map but not a single 2d texture either
+	CF_2D_ARRAY,	// not a cube map but not a single 2d texture either
+	CF_CAMERA_ALT	// motorsep 12-30-2022; to use with cubemaps created from equirectangular panoramas in Bixorama (or perhaps any other similar software)
 } cubeFiles_t;
 
 #include "ImageOpts.h"
