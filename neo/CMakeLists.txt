@@ -1375,16 +1375,29 @@ else()
 	endforeach()
 
 	# precompiled magic for GCC/clang, adapted from https://gist.github.com/573926
+	# Updated to support Cmake 3.3 or newer.
 	STRING(TOUPPER "CMAKE_CXX_FLAGS_${CMAKE_BUILD_TYPE}" _flags_var_name)
 	SET(_compiler_FLAGS ${${_flags_var_name}})
-	GET_DIRECTORY_PROPERTY(_directory_flags INCLUDE_DIRECTORIES)
-	FOREACH(item ${_directory_flags})
-		LIST(APPEND _compiler_FLAGS " -I${item}")
-	ENDFOREACH(item)
 
+	if(NOT CMAKE_VERSION VERSION_LESS "3.3")
+		# This section is for Cmake 3.3 or newer.
+		get_property(_directory_flags DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+		FOREACH(item ${_directory_flags})
+			LIST(APPEND _compiler_FLAGS " -I${item}")
+		ENDFOREACH(item)
+		get_property(_directory_flags DIRECTORY PROPERTY COMPILE_DEFINITIONS)
+		FOREACH(item ${_directory_flags})
+			LIST(APPEND _compiler_FLAGS " -D${item}")
+		ENDFOREACH(item)
+	else()
+		GET_DIRECTORY_PROPERTY(_directory_flags INCLUDE_DIRECTORIES)
+		FOREACH(item ${_directory_flags})
+			LIST(APPEND _compiler_FLAGS " -I${item}")
+		ENDFOREACH(item)
+		GET_DIRECTORY_PROPERTY(_directory_flags DEFINITIONS)
+		LIST(APPEND _compiler_FLAGS ${_directory_flags})
+	endif()
 
-	GET_DIRECTORY_PROPERTY(_directory_flags DEFINITIONS)
-	LIST(APPEND _compiler_FLAGS ${_directory_flags})
 	SEPARATE_ARGUMENTS(_compiler_FLAGS)
 	
 	# we need to recreate the precompiled header for SteelStorm2_bfg 
