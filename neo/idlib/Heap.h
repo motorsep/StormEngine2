@@ -68,7 +68,7 @@ char* 		Mem_CopyString( const char* in );
 // RB end
 
 ID_INLINE void* operator new( size_t s )
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && __cplusplus < 201100
 throw( std::bad_alloc ) // DG: standard signature seems to include throw(..)
 #endif
 {
@@ -76,14 +76,14 @@ throw( std::bad_alloc ) // DG: standard signature seems to include throw(..)
 }
 
 ID_INLINE void operator delete( void* p )
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && __cplusplus < 201100
 throw() // DG: delete musn't throw
 #endif
 {
 	Mem_Free( p );
 }
 ID_INLINE void* operator new[]( size_t s )
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && __cplusplus < 201100
 throw( std::bad_alloc ) // DG: standard signature seems to include throw(..)
 #endif
 {
@@ -91,7 +91,7 @@ throw( std::bad_alloc ) // DG: standard signature seems to include throw(..)
 }
 
 ID_INLINE void operator delete[]( void* p )
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && __cplusplus < 201100
 throw() // DG: delete musn't throw
 #endif
 {
@@ -104,7 +104,7 @@ ID_INLINE void* operator new( size_t s, memTag_t tag )
 }
 
 ID_INLINE void operator delete( void* p, memTag_t tag )
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && __cplusplus < 201100
 throw() // DG: delete musn't throw
 #endif
 {
