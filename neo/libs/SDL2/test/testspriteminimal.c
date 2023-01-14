@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -15,7 +15,12 @@
 #include <stdio.h>
 #include <time.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 #include "SDL.h"
+#include "testutils.h"
 
 #define WINDOW_WIDTH    640
 #define WINDOW_HEIGHT   480
@@ -27,64 +32,19 @@ static SDL_Rect positions[NUM_SPRITES];
 static SDL_Rect velocities[NUM_SPRITES];
 static int sprite_w, sprite_h;
 
+SDL_Renderer *renderer;
+int done;
+
 /* Call this instead of exit(), so we can clean up SDL: atexit() is evil. */
 static void
 quit(int rc)
 {
+    SDL_Quit();
     exit(rc);
 }
 
-int
-LoadSprite(char *file, SDL_Renderer *renderer)
-{
-    SDL_Surface *temp;
-
-    /* Load the sprite image */
-    temp = SDL_LoadBMP(file);
-    if (temp == NULL) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't load %s: %s\n", file, SDL_GetError());
-        return (-1);
-    }
-    sprite_w = temp->w;
-    sprite_h = temp->h;
-
-    /* Set transparent pixel as the pixel at (0,0) */
-    if (temp->format->palette) {
-        SDL_SetColorKey(temp, SDL_TRUE, *(Uint8 *) temp->pixels);
-    } else {
-        switch (temp->format->BitsPerPixel) {
-        case 15:
-            SDL_SetColorKey(temp, SDL_TRUE,
-                            (*(Uint16 *) temp->pixels) & 0x00007FFF);
-            break;
-        case 16:
-            SDL_SetColorKey(temp, SDL_TRUE, *(Uint16 *) temp->pixels);
-            break;
-        case 24:
-            SDL_SetColorKey(temp, SDL_TRUE,
-                            (*(Uint32 *) temp->pixels) & 0x00FFFFFF);
-            break;
-        case 32:
-            SDL_SetColorKey(temp, SDL_TRUE, *(Uint32 *) temp->pixels);
-            break;
-        }
-    }
-
-    /* Create textures from the image */
-    sprite = SDL_CreateTextureFromSurface(renderer, temp);
-    if (!sprite) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't create texture: %s\n", SDL_GetError());
-        SDL_FreeSurface(temp);
-        return (-1);
-    }
-    SDL_FreeSurface(temp);
-
-    /* We're ready to roll. :) */
-    return (0);
-}
-
 void
-MoveSprites(SDL_Renderer * renderer, SDL_Texture * sprite)
+MoveSprites()
 {
     int i;
     int window_w = WINDOW_WIDTH;
@@ -118,27 +78,46 @@ MoveSprites(SDL_Renderer * renderer, SDL_Texture * sprite)
     SDL_RenderPresent(renderer);
 }
 
+void loop()
+{
+    SDL_Event event;
+
+    /* Check for events */
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN) {
+            done = 1;
+        }
+    }
+    MoveSprites();
+#ifdef __EMSCRIPTEN__
+    if (done) {
+        emscripten_cancel_main_loop();
+    }
+#endif
+}
+
 int
 main(int argc, char *argv[])
 {
     SDL_Window *window;
-    SDL_Renderer *renderer;
-    int i, done;
-    SDL_Event event;
+    int i;
 
-	/* Enable standard application logging */
+
+    /* Enable standard application logging */
     SDL_LogSetPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO);
 
     if (SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, 0, &window, &renderer) < 0) {
         quit(2);
     }
 
-    if (LoadSprite("icon.bmp", renderer) < 0) {
+    sprite = LoadTexture(renderer, "icon.bmp", SDL_TRUE, &sprite_w, &sprite_h);
+
+    if (sprite == NULL) {
         quit(2);
     }
 
     /* Initialize the sprite positions */
-    srand(time(NULL));
+    srand((unsigned int)time(NULL));
     for (i = 0; i < NUM_SPRITES; ++i) {
         positions[i].x = rand() % (WINDOW_WIDTH - sprite_w);
         positions[i].y = rand() % (WINDOW_HEIGHT - sprite_h);
@@ -154,16 +133,14 @@ main(int argc, char *argv[])
 
     /* Main render loop */
     done = 0;
-    while (!done) {
-        /* Check for events */
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT || event.type == SDL_KEYDOWN) {
-                done = 1;
-            }
-        }
-        MoveSprites(renderer, sprite);
-    }
 
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop(loop, 0, 1);
+#else
+    while (!done) {
+        loop();
+    }
+#endif
     quit(0);
 
     return 0; /* to prevent compiler warning */

@@ -1,5 +1,5 @@
 /*
-  Copyright (C) 1997-2014 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -14,10 +14,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 
 #include "SDL.h"
-#include "SDL_thread.h"
 
 static int alive = 0;
 
@@ -59,6 +57,12 @@ main(int argc, char *argv[])
 
     /* Set the error value for the main thread */
     SDL_SetError("No worries");
+
+    if (SDL_getenv("SDL_TESTS_QUICK") != NULL) {
+        SDL_Log("Not running slower tests");
+        SDL_Quit();
+        return 0;
+    }
 
     alive = 1;
     thread = SDL_CreateThread(ThreadFunc, NULL, "#1");
