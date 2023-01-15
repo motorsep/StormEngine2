@@ -517,7 +517,9 @@ void idCommonLocal::ExecuteMapChange()
 	{
 		// In multiplayer, make sure the player is either 60Hz or 120Hz
 		// to avoid potential issues.
-		const float mpEngineHz = ( com_engineHz.GetFloat() < 90.0f ) ? 60.0f : 120.0f;
+		//const float mpEngineHz = ( com_engineHz.GetFloat() < 90.0f ) ? 60.0f : 120.0f;
+		// motorsep 01-14-2023: potential fix for high refresh rate monitors
+		const float mpEngineHz = (com_engineHz.GetFloat() < 90.0f) ? 60.0f : 240.0f;
 		com_engineHz_denominator = 100LL * mpEngineHz;
 		com_engineHz_latched = mpEngineHz;
 	}

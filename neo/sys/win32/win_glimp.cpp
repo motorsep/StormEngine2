@@ -954,10 +954,12 @@ bool R_GetModeListForDisplay( const int requestedDisplayNum, idList<vidMode_t>& 
 			{
 				continue;
 			}
-			if( ( devmode.dmDisplayFrequency != 60 ) && ( devmode.dmDisplayFrequency != 120 ) )
+			//if ((devmode.dmDisplayFrequency != 60) && (devmode.dmDisplayFrequency != 120))
+			// motorsep 01-14-2023: Potential fix for screens with refresh rate different from 60Hz and 120Hz
+			/*if ((devmode.dmDisplayFrequency != 60) && (devmode.dmDisplayFrequency != 240))
 			{
 				continue;
-			}
+			}*/
 			if( devmode.dmPelsHeight < 720 )
 			{
 				continue;
