@@ -140,6 +140,11 @@ public:
 	idFramebuffer*		glowFramebuffer16[4];
 	idFramebuffer*		shadowMapFramebuffer[MAX_SHADOWMAP_RESOLUTIONS][6];
 	
+	// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+	idFramebuffer* ambientOcclusionFBO[2];
+	idFramebuffer* csDepthFBO[6];
+	// motorsep 04-23-2023; end
+
 	idFramebuffer*		AllocFramebuffer( const char* name, int layer = -1 );
 	idFramebuffer*		AllocStandaloneFramebuffer( const char* name );
 

@@ -377,6 +377,29 @@ void idFramebufferManager::Init()
 	glowFramebuffer16[3] = AllocFramebuffer( "_glowFramebufferHDR3" );
 	glowFramebuffer16[3]->SetColorAttachment( 0, globalImages->glowFramebufferImage16[3] );
 
+	// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+	// AMBIENT OCCLUSION
+	ambientOcclusionFBO[0] = AllocFramebuffer("_ao0");
+	ambientOcclusionFBO[0]->SetColorAttachment(0, globalImages->ambientOcclusionImage[0]);
+	ambientOcclusionFBO[1] = AllocFramebuffer("_ao1");
+	ambientOcclusionFBO[1]->SetColorAttachment(0, globalImages->ambientOcclusionImage[1]);
+	
+	// HIERARCHICAL Z BUFFER
+
+	csDepthFBO[0] = AllocFramebuffer("_csz0");
+	csDepthFBO[0]->SetColorAttachment(0, globalImages->hierarchicalZbufferImage[0]);
+	csDepthFBO[1] = AllocFramebuffer("_csz1");
+	csDepthFBO[1]->SetColorAttachment(0, globalImages->hierarchicalZbufferImage[1]);
+	csDepthFBO[2] = AllocFramebuffer("_csz2");
+	csDepthFBO[2]->SetColorAttachment(0, globalImages->hierarchicalZbufferImage[2]);
+	csDepthFBO[3] = AllocFramebuffer("_csz3");
+	csDepthFBO[3]->SetColorAttachment(0, globalImages->hierarchicalZbufferImage[3]);
+	csDepthFBO[4] = AllocFramebuffer("_csz4");
+	csDepthFBO[4]->SetColorAttachment(0, globalImages->hierarchicalZbufferImage[4]);
+	csDepthFBO[5] = AllocFramebuffer("_csz5");
+	csDepthFBO[5]->SetColorAttachment(0, globalImages->hierarchicalZbufferImage[5]);
+	// motorsep 04-23-2023; end
+
 	for ( int i = 0;i < 5;i++ )
 	{
 		for ( int j = 0;j < 6;j++ )

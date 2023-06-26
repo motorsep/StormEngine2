@@ -194,7 +194,8 @@ public:
 	int		FindVertexShader( const char* name );
 	int		FindFragmentShader( const char* name );
 	
-	void	BindShader( int vIndex, int fIndex );
+	//void	BindShader( int vIndex, int fIndex );
+	void	BindShader(int progIndex, int vIndex, int fIndex, bool builtin);
 	
 	void	BindShader_GUI( )
 	{
@@ -300,11 +301,13 @@ public:
 	}
 	void	BindShader_Shadow()
 	{
-		BindShader( builtinShaders[BUILTIN_SHADOW], -1 );
+		//BindShader( builtinShaders[BUILTIN_SHADOW], -1 );
+		BindShader_Builtin(BUILTIN_SHADOW);
 	}
 	void	BindShader_ShadowSkinned()
 	{
-		BindShader( builtinShaders[BUILTIN_SHADOW_SKINNED], -1 );
+		//BindShader( builtinShaders[BUILTIN_SHADOW_SKINNED], -1 );
+		BindShader_Builtin(BUILTIN_SHADOW_SKINNED);
 	}
 	void	BindShader_ShadowDebug()
 	{
@@ -398,10 +401,44 @@ public:
 	{
 		return vertexShaders[currentVertexShader].optionalSkinning;
 	}
+
+	// motorsep 04 - 23 - 2023; SSAO from RBDoom 3 1.1.0 preview 3
+	void	BindShader_AmbientOcclusion()
+	{
+		BindShader_Builtin(BUILTIN_AMBIENT_OCCLUSION);
+	}
+
+	void	BindShader_AmbientOcclusionAndOutput()
+	{
+		BindShader_Builtin(BUILTIN_AMBIENT_OCCLUSION_AND_OUTPUT);
+	}
+
+	void	BindShader_AmbientOcclusionBlur()
+	{
+		BindShader_Builtin(BUILTIN_AMBIENT_OCCLUSION_BLUR);
+	}
+
+	void	BindShader_AmbientOcclusionBlurAndOutput()
+	{
+		BindShader_Builtin(BUILTIN_AMBIENT_OCCLUSION_BLUR_AND_OUTPUT);
+	}
+	
+	void	BindShader_AmbientOcclusionMinify()
+	{
+		BindShader_Builtin(BUILTIN_AMBIENT_OCCLUSION_MINIFY);
+	}
+
+	void	BindShader_AmbientOcclusionReconstructCSZ()
+	{
+		BindShader_Builtin(BUILTIN_AMBIENT_OCCLUSION_RECONSTRUCT_CSZ);
+	}
+	// motorsep 04 - 23 - 2023; end
 	
 	// unbind the currently bound render program
 	void	Unbind();
 	
+	bool		IsShaderBound() const;
+
 	// this should only be called via the reload shader console command
 	void	LoadAllShaders();
 	void	KillAllShaders();
@@ -473,35 +510,53 @@ protected:
 		BUILTIN_INTERACTION_SHADOW_MAPPING_POINT_SKINNED,
 		BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL,
 		BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED,
-		// RB end		
+		// RB end
+		// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+		BUILTIN_AMBIENT_OCCLUSION,
+		BUILTIN_AMBIENT_OCCLUSION_AND_OUTPUT,
+		BUILTIN_AMBIENT_OCCLUSION_BLUR,
+		BUILTIN_AMBIENT_OCCLUSION_BLUR_AND_OUTPUT,
+		BUILTIN_AMBIENT_OCCLUSION_MINIFY,
+		BUILTIN_AMBIENT_OCCLUSION_RECONSTRUCT_CSZ,
+		// motorsep 04-23-2023; end
 		MAX_BUILTINS
 	};
 	int builtinShaders[MAX_BUILTINS];
 	void BindShader_Builtin( int i )
 	{
-		BindShader( builtinShaders[i], builtinShaders[i] );
+		//BindShader( builtinShaders[i], builtinShaders[i] );
+		BindShader(-1, builtinShaders[i], builtinShaders[i], true);
 	}
 	
 	bool	CompileGLSL( GLenum target, const char* name );
-	GLuint	LoadGLSLShader( GLenum target, const char* name, idList<int>& uniforms );
+	//GLuint	LoadGLSLShader( GLenum target, const char* name, idList<int>& uniforms );
+	GLuint	LoadGLSLShader(GLenum target, const char* name, const char* nameOutSuffix, uint32 shaderFeatures, bool builtin, idList<int>& uniforms);
 	void	LoadGLSLProgram( const int programIndex, const int vertexShaderIndex, const int fragmentShaderIndex );
 	
 	static const GLuint INVALID_PROGID = 0xFFFFFFFF;
 	
 	struct vertexShader_t
 	{
-		vertexShader_t() : progId( INVALID_PROGID ), usesJoints( false ), optionalSkinning( false ) {}
+		//vertexShader_t() : progId( INVALID_PROGID ), usesJoints( false ), optionalSkinning( false ) {}
+		vertexShader_t() : progId(INVALID_PROGID), usesJoints(false), optionalSkinning(false), shaderFeatures(0), builtin(false) {}
 		idStr		name;
+		idStr		nameOutSuffix;
 		GLuint		progId;
 		bool		usesJoints;
 		bool		optionalSkinning;
+		uint32		shaderFeatures;		// RB: Cg compile macros
+		bool		builtin;			// RB: part of the core shaders built into the executable
 		idList<int>	uniforms;
 	};
 	struct fragmentShader_t
 	{
-		fragmentShader_t() : progId( INVALID_PROGID ) {}
+		//fragmentShader_t() : progId( INVALID_PROGID ) {}
+		fragmentShader_t() : progId(INVALID_PROGID), shaderFeatures(0), builtin(false) {}
 		idStr		name;
+		idStr		nameOutSuffix;
 		GLuint		progId;
+		uint32		shaderFeatures;
+		bool		builtin;
 		idList<int>	uniforms;
 	};
 	

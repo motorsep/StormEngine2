@@ -214,6 +214,22 @@ static void R_DepthStencilImageNearest( idImage* image )
 	image->GenerateImage( ( byte* )data, DEFAULT_SIZE, DEFAULT_SIZE, TF_NEAREST, TR_CLAMP, TD_DEPTHSTENCIL );
 }
 
+// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+static void R_SMAAImage_ResNative(idImage* image)
+{
+	byte	data[DEFAULT_SIZE][DEFAULT_SIZE][8];
+	image->GenerateImage((byte*)data, DEFAULT_SIZE, DEFAULT_SIZE, TF_LINEAR, TR_CLAMP, TD_RGBA16F);
+
+	//image->GenerateImage(NULL, glConfig.nativeScreenWidth, glConfig.nativeScreenHeight, TF_LINEAR, TR_CLAMP, TD_LOOKUP_TABLE_RGBA);
+}
+
+static void R_HierarchicalZBufferImage_ResNative(idImage* image)
+{
+	byte	data[DEFAULT_SIZE][DEFAULT_SIZE][8];
+	image->GenerateImage((byte*)data, DEFAULT_SIZE, DEFAULT_SIZE, TF_NEAREST_MIPMAP, TR_CLAMP, TD_R32F);
+}
+// motorsep 04-23-2023; end
+
 static void R_AlphaNotchImage( idImage* image )
 {
 	byte	data[2][4];
@@ -666,6 +682,20 @@ void idImageManager::CreateIntrinsicImages()
 
 	randomImage256 = globalImages->ImageFromFunction( "_random256", R_CreateRandom256Image );
 	// RB end
+
+	// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+	currentNormalsImage = ImageFromFunction("_currentNormals", R_SMAAImage_ResNative);
+
+	ambientOcclusionImage[0] = ImageFromFunction("_ao0", R_SMAAImage_ResNative);
+	ambientOcclusionImage[1] = ImageFromFunction("_ao1", R_SMAAImage_ResNative);
+
+	hierarchicalZbufferImage[0] = ImageFromFunction("_csz0", R_HierarchicalZBufferImage_ResNative);
+	hierarchicalZbufferImage[1] = ImageFromFunction("_csz1", R_HierarchicalZBufferImage_ResNative);
+	hierarchicalZbufferImage[2] = ImageFromFunction("_csz2", R_HierarchicalZBufferImage_ResNative);
+	hierarchicalZbufferImage[3] = ImageFromFunction("_csz3", R_HierarchicalZBufferImage_ResNative);
+	hierarchicalZbufferImage[4] = ImageFromFunction("_csz4", R_HierarchicalZBufferImage_ResNative);
+	hierarchicalZbufferImage[5] = ImageFromFunction("_csz5", R_HierarchicalZBufferImage_ResNative);
+	// motorsep 04-23-2023; end
 	
 	// scratchImage is used for screen wipes/doublevision etc..
 	scratchImage = ImageFromFunction( "_scratch", R_RGBA8Image );

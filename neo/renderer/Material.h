@@ -47,6 +47,7 @@ typedef enum
 {
 	TF_LINEAR,
 	TF_NEAREST,
+	TF_NEAREST_MIPMAP,		// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3; no linear interpolation but explicit mip-map levels for hierarchical depth buffer
 	TF_DEFAULT				// use the user-specified r_textureFilter
 } textureFilter_t;
 

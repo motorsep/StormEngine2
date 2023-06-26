@@ -262,6 +262,7 @@ void idImage::SetTexParameters()
 			qglTexParameterf( target, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 			break;
 		case TF_NEAREST:
+		case TF_NEAREST_MIPMAP:
 			qglTexParameterf( target, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
 			qglTexParameterf( target, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 			break;

@@ -1118,7 +1118,8 @@ idStr ConvertCG2GLSL( const idStr& in, const char* name, bool isVertexProgram, i
 idRenderProgManager::LoadGLSLShader
 ================================================================================================
 */
-GLuint idRenderProgManager::LoadGLSLShader( GLenum target, const char* name, idList<int>& uniforms )
+//GLuint idRenderProgManager::LoadGLSLShader( GLenum target, const char* name, idList<int>& uniforms )
+GLuint idRenderProgManager::LoadGLSLShader(GLenum target, const char* name, const char* nameOutSuffix, uint32 shaderFeatures, bool builtin, idList<int>& uniforms)
 {
 
 	idStr inFile;

@@ -1021,6 +1021,9 @@ void idImage::Print() const
 		case TF_NEAREST:
 			common->Printf( "nrst " );
 			break;
+		case TF_NEAREST_MIPMAP:
+			common->Printf("nmip ");
+			break;
 		default:
 			common->Printf( "<BAD FILTER:%i>", filter );
 			break;

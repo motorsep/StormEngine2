@@ -83,9 +83,12 @@ void idRenderProgManager::Init()
 	{
 		int index;
 		const char* name;
+		const char* nameOutSuffix;
+		uint32		shaderFeatures;
+		bool		requireGPUSkinningSupport;
 	} builtins[] =
 	{
-		{ BUILTIN_GUI, "gui.vfp" },
+		{ BUILTIN_GUI, "gui.vfp", "", 0, false},
 		{ BUILTIN_COLOR, "color.vfp" },
 		{ BUILTIN_SIMPLESHADE, "simpleshade.vfp" },
 		{ BUILTIN_TEXTURED, "texture.vfp" },
@@ -132,6 +135,12 @@ void idRenderProgManager::Init()
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_POINT_SKINNED, "interactionSM_point_skinned.vfp" },
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL, "interactionSM_parallel.vfp" },
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED, "interactionSM_parallel_skinned.vfp" },
+		{ BUILTIN_AMBIENT_OCCLUSION, "AmbientOcclusion_AO", "", 0, false },
+		{ BUILTIN_AMBIENT_OCCLUSION_AND_OUTPUT, "AmbientOcclusion_AO", "_write", 0, false },
+		{ BUILTIN_AMBIENT_OCCLUSION_BLUR, "AmbientOcclusion_blur", "", 0, false },
+		{ BUILTIN_AMBIENT_OCCLUSION_BLUR_AND_OUTPUT, "AmbientOcclusion_blur", "_write", 0, false },
+		{ BUILTIN_AMBIENT_OCCLUSION_MINIFY, "AmbientOcclusion_minify", "", 0, false },
+		{ BUILTIN_AMBIENT_OCCLUSION_RECONSTRUCT_CSZ, "AmbientOcclusion_minify", "_mip0", 0, false },
 	};
 	int numBuiltins = sizeof( builtins ) / sizeof( builtins[0] );
 	vertexShaders.SetNum( numBuiltins );
@@ -141,7 +150,13 @@ void idRenderProgManager::Init()
 	for( int i = 0; i < numBuiltins; i++ )
 	{
 		vertexShaders[i].name = builtins[i].name;
+		vertexShaders[i].nameOutSuffix = builtins[i].nameOutSuffix;
+		vertexShaders[i].shaderFeatures = builtins[i].shaderFeatures;
+		vertexShaders[i].builtin = true;
 		fragmentShaders[i].name = builtins[i].name;
+		fragmentShaders[i].nameOutSuffix = builtins[i].nameOutSuffix;
+		fragmentShaders[i].shaderFeatures = builtins[i].shaderFeatures;
+		fragmentShaders[i].builtin = true;
 		builtinShaders[builtins[i].index] = i;
 		LoadVertexShader( i );
 		LoadFragmentShader( i );
@@ -321,7 +336,9 @@ void idRenderProgManager::LoadVertexShader( int index )
 	{
 		return; // Already loaded
 	}
-	vertexShaders[index].progId = ( GLuint ) LoadGLSLShader( GL_VERTEX_SHADER, vertexShaders[index].name, vertexShaders[index].uniforms );
+	//vertexShaders[index].progId = ( GLuint ) LoadGLSLShader( GL_VERTEX_SHADER, vertexShaders[index].name, vertexShaders[index].uniforms );
+	vertexShader_t& vs = vertexShaders[index];
+	vertexShaders[index].progId = (GLuint)LoadGLSLShader(GL_VERTEX_SHADER, vs.name, vs.nameOutSuffix, vs.shaderFeatures, vs.builtin, vs.uniforms);
 }
 
 /*
@@ -335,7 +352,9 @@ void idRenderProgManager::LoadFragmentShader( int index )
 	{
 		return; // Already loaded
 	}
-	fragmentShaders[index].progId = ( GLuint ) LoadGLSLShader( GL_FRAGMENT_SHADER, fragmentShaders[index].name, fragmentShaders[index].uniforms );
+	//fragmentShaders[index].progId = ( GLuint ) LoadGLSLShader( GL_FRAGMENT_SHADER, fragmentShaders[index].name, fragmentShaders[index].uniforms );
+	fragmentShader_t& fs = fragmentShaders[index];
+	fragmentShaders[index].progId = (GLuint)LoadGLSLShader(GL_FRAGMENT_SHADER, fs.name, fs.nameOutSuffix, fs.shaderFeatures, fs.builtin, fs.uniforms);
 }
 
 /*
@@ -343,7 +362,7 @@ void idRenderProgManager::LoadFragmentShader( int index )
 idRenderProgManager::BindShader
 ================================================================================================
 */
-void idRenderProgManager::BindShader( int vIndex, int fIndex )
+/*void idRenderProgManager::BindShader(int vIndex, int fIndex)
 {
 	if( currentVertexShader == vIndex && currentFragmentShader == fIndex )
 	{
@@ -358,6 +377,52 @@ void idRenderProgManager::BindShader( int vIndex, int fIndex )
 		RENDERLOG_PRINTF( "Binding GLSL Program %s\n", glslPrograms[vIndex].name.c_str() );
 		qglUseProgram( glslPrograms[vIndex].progId );
 	}
+} */
+void idRenderProgManager::BindShader(int progIndex, int vIndex, int fIndex, bool builtin)
+{
+	if (currentVertexShader == vIndex && currentFragmentShader == fIndex)
+	{
+		return;
+	}
+
+	if (builtin)
+	{
+		currentVertexShader = vIndex;
+		currentFragmentShader = fIndex;
+
+		// vIndex denotes the GLSL program
+		if (vIndex >= 0 && vIndex < glslPrograms.Num())
+		{
+			currentRenderProgram = vIndex;
+			RENDERLOG_PRINTF("Binding GLSL Program %s\n", glslPrograms[vIndex].name.c_str());
+			qglUseProgram(glslPrograms[vIndex].progId);
+		}
+	}
+	else
+	{
+		if (progIndex == -1)
+		{
+			// RB: FIXME linear search
+			for (int i = 0; i < glslPrograms.Num(); ++i)
+			{
+				if ((glslPrograms[i].vertexShaderIndex == vIndex) && (glslPrograms[i].fragmentShaderIndex == fIndex))
+				{
+					progIndex = i;
+					break;
+				}
+			}
+		}
+
+		currentVertexShader = vIndex;
+		currentFragmentShader = fIndex;
+
+		if (progIndex >= 0 && progIndex < glslPrograms.Num())
+		{
+			currentRenderProgram = progIndex;
+			RENDERLOG_PRINTF("Binding GLSL Program %s\n", glslPrograms[progIndex].name.c_str());
+			qglUseProgram(glslPrograms[progIndex].progId);
+		}
+	}
 }
 
 /*
@@ -371,6 +436,11 @@ void idRenderProgManager::Unbind()
 	currentFragmentShader = -1;
 	
 	qglUseProgram( 0 );
+}
+
+bool idRenderProgManager::IsShaderBound() const
+{
+	return (currentVertexShader != -1);
 }
 
 /*

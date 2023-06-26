@@ -3402,7 +3402,8 @@ static int RB_DrawShaderPasses( const drawSurf_t* const* const drawSurfs, const 
 				
 				// RB: CRITICAL BUGFIX: changed newStage->glslProgram to vertexProgram and fragmentProgram
 				// otherwise it will result in an out of bounds crash in RB_DrawElementsWithCounters
-				renderProgManager.BindShader( newStage->vertexProgram, newStage->fragmentProgram );
+				//renderProgManager.BindShader( newStage->vertexProgram, newStage->fragmentProgram );
+				renderProgManager.BindShader( newStage->glslProgram, newStage->vertexProgram, newStage->fragmentProgram, false );
 				// RB end
 				
 				for( int j = 0; j < newStage->numVertexParms; j++ )
@@ -3945,6 +3946,209 @@ static void RB_FogAllLights(bool glowStage)
 	renderLog.CloseMainBlock();
 }
 
+static void RB_SSAO(const viewDef_t* viewDef)
+{
+	if (!viewDef->viewEntitys || viewDef->is2Dgui)
+	{
+		// 3D views only
+		return;
+	}
+
+	if (r_useSSAO.GetInteger() <= 0)
+	{
+		return;
+	}
+
+	// FIXME very expensive to enable this in subviews
+	if (viewDef->isSubview)
+	{
+		return;
+	}
+
+	RENDERLOG_PRINTF("---------- RB_SSAO() ----------\n");
+
+	backEnd.currentSpace = &backEnd.viewDef->worldSpace;
+	RB_SetMVP(backEnd.viewDef->worldSpace.mvp);
+
+	int screenWidth = renderSystem->GetWidth();
+	int screenHeight = renderSystem->GetHeight();
+
+	// build hierarchical depth buffer
+	if (r_useHierarchicalDepthBuffer.GetBool())
+	{
+		renderProgManager.BindShader_AmbientOcclusionMinify();
+
+		glClearColor(0, 0, 0, 1);
+
+		GL_SelectTexture(0);
+		//globalImages->currentDepthImage->Bind();
+
+		for (int i = 0; i < 6; i++)
+		{
+			GL_Viewport(0, 0, screenWidth, screenHeight);
+			GL_Scissor(0, 0, screenWidth, screenHeight);
+
+			globalFramebuffers->csDepthFBO[i]->Bind();
+
+			glClear(GL_COLOR_BUFFER_BIT);
+
+			if (i == 0)
+			{
+				renderProgManager.BindShader_AmbientOcclusionReconstructCSZ();
+
+				globalImages->currentDepthImage->Bind();
+			}
+			else
+			{
+				renderProgManager.BindShader_AmbientOcclusionMinify();
+
+				GL_SelectTexture(0);
+				globalImages->hierarchicalZbufferImage[i]->Bind();
+			}
+
+			float jitterTexScale[4];
+			jitterTexScale[0] = i - 1;
+			jitterTexScale[1] = 0;
+			jitterTexScale[2] = 0;
+			jitterTexScale[3] = 0;
+			SetFragmentParm(RENDERPARM_JITTERTEXSCALE, jitterTexScale); // rpJitterTexScale
+#if 1
+			float screenCorrectionParm[4];
+			screenCorrectionParm[0] = 1.0f / screenWidth;
+			screenCorrectionParm[1] = 1.0f / screenHeight;
+			screenCorrectionParm[2] = screenWidth;
+			screenCorrectionParm[3] = screenHeight;
+			SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenCorrectionParm); // rpScreenCorrectionFactor
+#endif
+
+			RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+		}
+	}
+
+	// set the window clipping
+	GL_Viewport(0, 0, screenWidth, screenHeight);
+	GL_Scissor(0, 0, screenWidth, screenHeight);
+
+	GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+	GL_Cull(CT_TWO_SIDED);
+
+	if (r_ssaoFiltering.GetBool())
+	{
+		globalFramebuffers->ambientOcclusionFBO[0]->Bind();
+
+		glClearColor(0, 0, 0, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		renderProgManager.BindShader_AmbientOcclusion();
+	}
+	else
+	{
+		if (r_ssaoDebug.GetInteger() <= 0)
+		{
+			GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_ALPHAMASK | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+		}
+
+		globalFramebuffers->viewFramebuffer->PurgeFramebuffer();
+
+		renderProgManager.BindShader_AmbientOcclusionAndOutput();
+	}
+
+	float screenCorrectionParm[4];
+	screenCorrectionParm[0] = 1.0f / glConfig.nativeScreenWidth;
+	screenCorrectionParm[1] = 1.0f / glConfig.nativeScreenHeight;
+	screenCorrectionParm[2] = glConfig.nativeScreenWidth;
+	screenCorrectionParm[3] = glConfig.nativeScreenHeight;
+	SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenCorrectionParm); // rpScreenCorrectionFactor
+	SetVertexParms(RENDERPARM_MODELMATRIX_X, viewDef->unprojectionToCameraRenderMatrix[0], 4);
+
+	float jitterTexOffset[4];
+	if (r_shadowMapRandomizeJitter.GetBool())
+	{
+		jitterTexOffset[0] = (rand() & 255) / 255.0;
+		jitterTexOffset[1] = (rand() & 255) / 255.0;
+	}
+	else
+	{
+		jitterTexOffset[0] = 0;
+		jitterTexOffset[1] = 0;
+	}
+	jitterTexOffset[2] = viewDef->renderView.time[0] * 0.001f;
+	jitterTexOffset[3] = 0.0f;
+	SetFragmentParm(RENDERPARM_JITTERTEXOFFSET, jitterTexOffset); // rpJitterTexOffset
+
+	GL_SelectTexture(0);
+	globalImages->currentNormalsImage->Bind();
+
+	GL_SelectTexture(1);
+
+	//globalImages->currentDepthImage->Bind();
+	if (r_useHierarchicalDepthBuffer.GetBool())
+	{
+		for (int i = 0; i < 6; i++)
+		{
+			globalImages->hierarchicalZbufferImage[i]->Bind();
+		}
+	}
+	else
+	{
+		globalImages->currentDepthImage->Bind();
+	}
+
+	RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+
+	if (r_ssaoFiltering.GetBool())
+	{
+		float jitterTexScale[4];
+
+		// AO blur X
+#if 1
+		globalFramebuffers->ambientOcclusionFBO[1]->Bind();
+
+		renderProgManager.BindShader_AmbientOcclusionBlur();
+
+		// set axis parameter
+		jitterTexScale[0] = 1;
+		jitterTexScale[1] = 0;
+		jitterTexScale[2] = 0;
+		jitterTexScale[3] = 0;
+		SetFragmentParm(RENDERPARM_JITTERTEXSCALE, jitterTexScale); // rpJitterTexScale
+
+		GL_SelectTexture(2);
+		globalImages->ambientOcclusionImage[0]->Bind();
+
+		RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+#endif
+		// AO blur Y
+		globalFramebuffers->viewFramebuffer->PurgeFramebuffer();
+
+		if (r_ssaoDebug.GetInteger() <= 0)
+		{
+			GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+		}
+
+		renderProgManager.BindShader_AmbientOcclusionBlurAndOutput();
+
+		// set axis parameter
+		jitterTexScale[0] = 0;
+		jitterTexScale[1] = 1;
+		jitterTexScale[2] = 0;
+		jitterTexScale[3] = 0;
+		SetFragmentParm(RENDERPARM_JITTERTEXSCALE, jitterTexScale); // rpJitterTexScale
+
+		GL_SelectTexture(2);
+		globalImages->ambientOcclusionImage[1]->Bind();
+
+		RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+	}
+
+	renderProgManager.Unbind();
+
+	GL_State(GLS_DEFAULT);
+	GL_Cull(CT_FRONT_SIDED);
+
+	//GL_CheckErrors();
+}
+
 /*
 =========================================================================================================
 
@@ -4201,6 +4405,19 @@ void RB_DrawViewInternal( const viewDef_t* viewDef, const int stereoEye, const b
 		//windowCoordParm[3] = 1.0f;
 		//SetFragmentParm( RENDERPARM_WINDOWCOORD, windowCoordParm ); // rpWindowCoord
 		
+		// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+
+		if (r_useSSAO.GetBool())
+		{
+			const idScreenRect& viewport = backEnd.viewDef->viewport;
+			globalImages->currentDepthImage->CopyDepthbuffer(viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight());
+		}
+
+		//-------------------------------------------------
+		// darken the scene using the screen space ambient occlusion
+		//-------------------------------------------------
+		RB_SSAO(viewDef);
+
 		// render the remaining surfaces
 		renderLog.OpenMainBlock( MRB_DRAW_SHADER_PASSES_POST );
 		RB_DrawShaderPasses( drawSurfs + processed, numDrawSurfs - processed, 0.0f /* definitely not a gui */, stereoEye, SS_POST_PROCESS + 1, false, false );

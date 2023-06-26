@@ -429,7 +429,9 @@ struct viewDef_t
 	float				projectionMatrix[16];
 	idRenderMatrix		projectionRenderMatrix;	// tech5 version of projectionMatrix
 	viewEntity_t		worldSpace;
-	
+
+	idRenderMatrix		unprojectionToCameraRenderMatrix; // motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+
 	idRenderWorldLocal* renderWorld;
 	
 	idVec3				initialViewAreaOrigin;
@@ -1100,6 +1102,13 @@ extern idCVar r_shadowMapQuality;
 extern idCVar r_shadowMapCascadeScale;
 extern idCVar r_shadowMapStaticShadowsDistance;
 // RB end
+
+// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+extern idCVar r_useSSAO;
+extern idCVar r_ssaoDebug;
+extern idCVar r_ssaoFiltering;
+extern idCVar r_useHierarchicalDepthBuffer;
+// motorsep 04-23-2023; end
 
 /*
 ====================================================================

@@ -243,6 +243,12 @@ idCVar r_shadowMapCascadeScale( "r_shadowMapCascadeScale", "0.1", CVAR_RENDERER 
 idCVar r_shadowMapStaticShadowsDistance( "r_shadowMapStaticShadowsDistance", "100000000", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "static objects past this distance won't cast shadows" );
 // RB end
 
+// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+idCVar r_useSSAO("r_useSSAO", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "use screen space ambient occlusion to darken corners");
+idCVar r_ssaoDebug("r_ssaoDebug", "0", CVAR_RENDERER | CVAR_INTEGER, "");
+idCVar r_ssaoFiltering("r_ssaoFiltering", "1", CVAR_RENDERER | CVAR_BOOL, "");
+idCVar r_useHierarchicalDepthBuffer("r_useHierarchicalDepthBuffer", "1", CVAR_RENDERER | CVAR_BOOL, "");
+// motorsep 04-23-2023; end
 
 idCVar r_screenshot_png( "screenshot_png", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "Save Screenshots as PNG files." );
 

@@ -70,6 +70,7 @@ typedef enum
 	// RB begin
 	TD_SHADOW_ARRAY,		// 2D depth buffer array for shadow mapping
 	// RB end
+	TD_R32F,				// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
 } textureUsage_t;
 
 inline bool IsToolUsage( textureUsage_t usage )
@@ -371,6 +372,13 @@ public:
 	idImage*			jitterImage16;
 	idImage*			randomImage256;
 	// RB end
+
+	// motorsep 04-23-2023; SSAO from RBDoom 3 1.1.0 preview 3
+	idImage* currentNormalsImage;			// cheap G-Buffer replacement, holds normals and surface roughness
+	idImage* ambientOcclusionImage[2];		// contain AO and bilateral filtering keys
+	idImage* hierarchicalZbufferImage[6];	// zbuffer with mip maps to accelerate screen space ray tracing
+	// motorsep 04-23-2023; end
+
 	idImage* 			scratchImage;
 	idImage* 			scratchImage2;
 	idImage* 			accumImage;
