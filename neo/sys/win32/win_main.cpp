@@ -1488,6 +1488,53 @@ EXCEPTION_DISPOSITION __cdecl _except_handler( struct _EXCEPTION_RECORD *Excepti
 							/*	FPU_EXCEPTION_INEXACT_RESULT |			*/	\
 								0
 
+typedef enum STORM_PROCESS_DPI_AWARENESS {
+	STORM_PROCESS_DPI_UNAWARE			= 0,
+	STORM_PROCESS_SYSTEM_DPI_AWARE		= 1,
+	STORM_PROCESS_PER_MONITOR_DPI_AWARE = 2
+} STORM_PROCESS_DPI_AWARENESS;
+
+/*
+==================
+Sys_SetHighDPIMode
+==================
+*/
+void Sys_SetHighDPIMode( void ) {
+	BOOL( WINAPI * SetProcessDPIAware )( void ) = NULL; // Win32 API call For Vista, Win7 and Win8
+	HRESULT( WINAPI * SetProcessDpiAwareness )( STORM_PROCESS_DPI_AWARENESS dpiAwareness ) = NULL; // Win32 API call for Win8.1 and later
+	BOOL( WINAPI * SetProcessDpiAwarenessContext ) ( DPI_AWARENESS_CONTEXT value ) = NULL; // Windows 10 1703 and later API call
+ 
+	// Load User32.dll and see if we have the Vista, 7 and 8 DPIAwareness call as well as the later Windows 10 1703 call
+	HINSTANCE userDLL = LoadLibrary( "USER32.DLL" );
+	if( userDLL ) {
+		SetProcessDPIAware = ( BOOL( WINAPI * )( void) ) GetProcAddress( userDLL, "SetProcessDPIAware" );
+		SetProcessDpiAwarenessContext = ( BOOL( WINAPI* )( DPI_AWARENESS_CONTEXT ) ) GetProcAddress( userDLL, "SetProcessDpiAwarenessContext" );
+	}
+
+	// Load the core shell dll and see if we have the updated 8.1 and later DPIAwareness call
+	HINSTANCE shcoreDLL = LoadLibrary( "SHCORE.DLL" );
+	if( shcoreDLL ) {
+		SetProcessDpiAwareness = ( HRESULT( WINAPI * )( STORM_PROCESS_DPI_AWARENESS ) ) GetProcAddress( shcoreDLL, "SetProcessDpiAwareness" );
+	}
+
+	// Prefer the newest API call if available
+	if( SetProcessDpiAwarenessContext ) {
+		SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
+	} else if( SetProcessDpiAwareness ) {
+		SetProcessDpiAwareness( STORM_PROCESS_PER_MONITOR_DPI_AWARE ); // this makes sure we get even scaling if the user moves the window to another monitor
+	} else if( SetProcessDPIAware ) {
+		SetProcessDPIAware();
+	}
+
+	// Free the DLLs that we loaded
+	if( shcoreDLL ) {
+		FreeLibrary( shcoreDLL );
+	}
+	if( userDLL ) {
+		FreeLibrary( userDLL );
+	}
+}
+
 /*
 ==================
 WinMain
@@ -1500,6 +1547,9 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	Sys_SetPhysicalWorkMemory( 192 << 20, 1024 << 20 );
 
 	Sys_GetCurrentMemoryStatus( exeLaunchMemoryStats );
+
+	// set the process to be DPI aware
+	Sys_SetHighDPIMode();
 	
 #if 0
     DWORD handler = (DWORD)_except_handler;
