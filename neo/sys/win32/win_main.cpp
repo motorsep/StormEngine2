@@ -1510,7 +1510,7 @@ void Sys_SetHighDPIMode( void ) {
 	}
 
 	// Load the core shell dll and see if we have the updated 8.1 and later DPIAwareness call
-	HINSTANCE shcoreDLL = LoadLibrary("SHCORE.DLL");
+	HINSTANCE shcoreDLL = LoadLibrary( "SHCORE.DLL" );
 	if( shcoreDLL ) {
 		SetProcessDpiAwareness = ( HRESULT( WINAPI * )( STORM_PROCESS_DPI_AWARENESS ) ) GetProcAddress( shcoreDLL, "SetProcessDpiAwareness" );
 	}
@@ -1520,6 +1520,14 @@ void Sys_SetHighDPIMode( void ) {
 		SetProcessDpiAwareness( STORM_PROCESS_PER_MONITOR_DPI_AWARE ); // this makes sure we get even scaling if the user moves the window to another monitor
 	} else if( SetProcessDPIAware ) {
 		SetProcessDPIAware();
+	}
+
+	// Free the DLLs that we loaded
+	if( shcoreDLL ) {
+		FreeLibrary( shcoreDLL );
+	}
+	if( userDLL ) {
+		FreeLibrary( userDLL );
 	}
 }
 
@@ -1535,6 +1543,9 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	Sys_SetPhysicalWorkMemory( 192 << 20, 1024 << 20 );
 
 	Sys_GetCurrentMemoryStatus( exeLaunchMemoryStats );
+
+	// set the process to be DPI aware
+	Sys_SetHighDPIMode();
 	
 #if 0
     DWORD handler = (DWORD)_except_handler;
@@ -1583,9 +1594,6 @@ int WINAPI WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	if ( win32.win_notaskkeys.GetInteger() ) {
 		DisableTaskKeys( TRUE, FALSE, /*( win32.win_notaskkeys.GetInteger() == 2 )*/ FALSE );
 	}
-
-	// set the process to be DPI aware
-	Sys_SetHighDPIMode();
 
 	// hide or show the early console as necessary
 	if ( win32.win_viewlog.GetInteger() ) {
