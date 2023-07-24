@@ -57,6 +57,7 @@ static bool grabbed = true;
 
 static SDL_Window* window = NULL;
 static SDL_GLContext context = NULL;
+
 bool QGL_Init( const char* dllname );
 void QGL_Shutdown();
 
@@ -97,6 +98,11 @@ bool GLimp_Init( glimpParms_t parms )
 	if( parms.fullScreen )
 		flags |= SDL_WINDOW_FULLSCREEN;
 		
+#if SDL_VERSION_ATLEAST(2, 0, 1)
+	// raynorpat: take advantage of HighDPI displays
+	flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
+
 	int colorbits = 24;
 	int depthbits = 24;
 	int stencilbits = 8;
