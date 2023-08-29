@@ -1185,6 +1185,8 @@ void RenderBump_f( const idCmdArgs &args ) {
 
 	common->Printf( "----- Renderbump %s -----\n", args.Argv( 1 ) );
 
+	R_InitTriSurfDataDmap();
+	R_InitMaterialsDmap(); // Initialize Dmap Materials.
 	startTime = Sys_Milliseconds();
 
 	// get the lowPoly model
@@ -1319,7 +1321,7 @@ void RenderBump_f( const idCmdArgs &args ) {
 	}
 
 	R_StaticFree( renderBumps );
-
+	R_ShutdownTriSurfData();
 	endTime = Sys_Milliseconds();
 	common->Printf( "%5.2f seconds for renderBump\n", ( endTime - startTime ) / 1000.0 );
 	common->Printf( "---------- RenderBump Completed ----------\n" );
@@ -1356,6 +1358,9 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 
 	// update the screen as we print
 	common->SetRefreshOnPrint( true );
+
+	R_InitTriSurfDataDmap();
+	R_InitMaterialsDmap(); // Initialize Dmap Materials.
 
 	width = height = 256;
 
@@ -1634,7 +1639,7 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 	Mem_Free( buffer );
 	Mem_Free( sumBuffer );
 	Mem_Free( colorSumBuffer );
-
+	R_ShutdownTriSurfData();
 	RestoreWindow();
 
 	// stop updating the screen as we print
