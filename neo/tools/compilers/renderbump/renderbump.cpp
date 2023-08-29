@@ -33,6 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "renderer/tr_local.h"
 
 #include "tools/compilers/compiler_public.h"
+#include "tools/compilers/dmap/renderer/Dmap_tr_local.h"
 
 #ifdef WIN32
 #include <windows.h>
@@ -58,6 +59,9 @@ If you have questions concerning this license or the applicable additional terms
 
 
 */
+
+
+void GLimp_SwapBuffers();
 
 #define MAX_QPATH		256
 
@@ -193,7 +197,7 @@ static void OutlineNormalMap( byte *data, int width, int height, int emptyR, int
 	idVec3	normal;
 	byte	*out;
 
-	orig = (byte *)Mem_Alloc( width * height * 4 );
+	orig = (byte *)Mem_Alloc( width * height * 4, TAG_RENDERBUMP );
 	memcpy( orig, data, width * height * 4 );
 
 	for ( i = 0 ; i < width ; i++ ) {
@@ -248,7 +252,7 @@ static void OutlineColorMap( byte *data, int width, int height, int emptyR, int 
 	idVec3	normal;
 	byte	*out;
 
-	orig = (byte *)Mem_Alloc( width * height * 4 );
+	orig = (byte *)Mem_Alloc( width * height * 4, TAG_RENDERBUMP);
 	memcpy( orig, data, width * height * 4 );
 
 	for ( i = 0 ; i < width ; i++ ) {
@@ -317,7 +321,7 @@ static triHash_t *CreateTriHash( const srfTriangles_t *highMesh ) {
 	int			iBounds[2][3];
 	int			maxLinks, numLinks;
 
-	hash = (triHash_t *)Mem_Alloc( sizeof( *hash ) );
+	hash = (triHash_t *)Mem_Alloc( sizeof( *hash ), TAG_RENDERBUMP);
 	memset( hash, 0, sizeof( *hash ) );
 
 	// find the bounding volume for the mesh
@@ -343,7 +347,7 @@ static triHash_t *CreateTriHash( const srfTriangles_t *highMesh ) {
 
 	numLinks = 0;
 
-	hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ) );
+	hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ), TAG_RENDERBUMP);
 	hash->numLinkBlocks++;
 	maxLinks = hash->numLinkBlocks * MAX_LINKS_PER_BLOCK;
 
@@ -377,7 +381,7 @@ static triHash_t *CreateTriHash( const srfTriangles_t *highMesh ) {
 			for ( k = iBounds[0][1] ; k <= iBounds[1][1] ; k++ ) {
 				for ( l = iBounds[0][2] ; l <= iBounds[1][2] ; l++ ) {
 					if ( numLinks == maxLinks ) {
-						hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ) );
+						hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ), TAG_RENDERBUMP);
 						hash->numLinkBlocks++;
 						maxLinks = hash->numLinkBlocks * MAX_LINKS_PER_BLOCK;
 					}
@@ -488,7 +492,7 @@ static float TraceToMeshFace( const srfTriangles_t *highMesh, int faceNum,
 	// triangularly interpolate the normals to the sample point
 	sampledNormal = vec3_origin;
 	for ( j = 0 ; j < 3 ; j++ ) {
-		sampledNormal += bary[j] * highMesh->verts[ highMesh->indexes[ faceNum * 3 + j ] ].normal;
+		sampledNormal += bary[j] * highMesh->verts[ highMesh->indexes[ faceNum * 3 + j ] ].GetNormalRaw();
 	}
 	sampledNormal.Normalize();
 
@@ -775,9 +779,10 @@ static void RasterizeTriangle( const srfTriangles_t *lowMesh, const idVec3 *lowM
 				// traceNormal will differ from normal if the surface uses unsmoothedTangents
 				traceNormal += bary[k] * lowMeshNormals[ index ];
 
-				normal += bary[k] * lowMesh->verts[ index ].normal;
-				tangents[0] += bary[k] * lowMesh->verts[ index ].tangents[0];
-				tangents[1] += bary[k] * lowMesh->verts[ index ].tangents[1];
+				normal += bary[k] * lowMesh->verts[ index ].GetNormalRaw();
+				//TODO: These next two lines may be swapped
+				tangents[0] += bary[k] * lowMesh->verts[ index ].GetTangentRaw();
+				tangents[1] += bary[k] * lowMesh->verts[ index ].GetBiTangentRaw();
 			}
 
 #if 0
@@ -886,7 +891,11 @@ static idRenderModel *CombineModelSurfaces( idRenderModel *model ) {
 	newTri->bounds.Clear();
 
 	idDrawVert *verts = newTri->verts;
+#if 1
+	triIndex_t* indexes = newTri->indexes;
+#else
 	glIndex_t *indexes = newTri->indexes;
+#endif
 	numIndexes = 0;
 	numVerts = 0;
 	for ( i = 0 ; i < model->NumSurfaces() ; i++ ) {
@@ -951,7 +960,7 @@ static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 	// normal from a single triangle.  We need properly smoothed
 	// normals to make sure that the traces always go off normal
 	// to the true surface.
-	idVec3	*lowMeshNormals = (idVec3 *)Mem_ClearedAlloc( lowMesh->numVerts * sizeof( *lowMeshNormals ) );
+	idVec3	*lowMeshNormals = (idVec3 *)Mem_ClearedAlloc( lowMesh->numVerts * sizeof( *lowMeshNormals ), TAG_RENDERBUMP);
 	R_DeriveFacePlanes( lowMesh );
 	R_CreateSilIndexes( lowMesh );	// recreate, merging the mirrored verts back together
 	const idPlane *planes = lowMesh->facePlanes;
@@ -980,7 +989,7 @@ static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 		qglClearColor(1,0,0,1);
 		qglClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		qglRasterPos2f( 0, 1 );
-		qglPixelZoom( glConfig.vidWidth / (float)rb->width, glConfig.vidHeight / (float)rb->height );
+		qglPixelZoom( glConfig.nativeScreenWidth / (float)rb->width, glConfig.nativeScreenHeight/ (float)rb->height );
 		qglDrawPixels( rb->width, rb->height, GL_RGBA, GL_UNSIGNED_BYTE, rb->localPic );
 		qglPixelZoom( 1, 1 );
 		qglFlush();
@@ -1031,15 +1040,15 @@ static void WriteRenderBump( renderBump_t *rb, int outLinePixels ) {
 		byte	*old;
 
 		old = rb->localPic;
-		rb->localPic = R_MipMap( rb->localPic, width, height, false );
+		rb->localPic = R_MipMap( rb->localPic, width, height );
 		Mem_Free( old );
 
 		old = rb->globalPic;
-		rb->globalPic = R_MipMap( rb->globalPic, width, height, false );
+		rb->globalPic = R_MipMap( rb->globalPic, width, height );
 		Mem_Free( old );
 
 		old = rb->colorPic;
-		rb->colorPic = R_MipMap( rb->colorPic, width, height, false );
+		rb->colorPic = R_MipMap( rb->colorPic, width, height );
 		Mem_Free( old );
 
 		width >>= 1;
@@ -1127,16 +1136,16 @@ static void InitRenderBump( renderBump_t *rb ) {
 	c = rb->width * rb->height * 4;
 
 	// local normal map
-	rb->localPic = (byte *)Mem_Alloc( c );
+	rb->localPic = (byte *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	// global (object space, not surface space) normal map
-	rb->globalPic = (byte *)Mem_Alloc( c );
+	rb->globalPic = (byte *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	// color pic for artist reference
-	rb->colorPic = (byte *)Mem_Alloc( c );
+	rb->colorPic = (byte *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	// edgeDistance for marking outside-the-triangle traces
-	rb->edgeDistances = (float *)Mem_Alloc( c );
+	rb->edgeDistances = (float *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	for ( i = 0 ; i < c ; i+=4 ) {
 		rb->localPic[i+0] = 128;
@@ -1450,11 +1459,11 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 	bool	flat;
 	int		sample;
 
-	sumBuffer = (int *)Mem_Alloc( width * height * 4 * 4 );
+	sumBuffer = (int *)Mem_Alloc( width * height * 4 * 4, TAG_RENDERBUMP);
 	memset( sumBuffer, 0, width * height * 4 * 4 );
-	buffer = (byte *)Mem_Alloc( width * height * 4 );
+	buffer = (byte *)Mem_Alloc( width * height * 4, TAG_RENDERBUMP);
 
-	colorSumBuffer = (int *)Mem_Alloc( width * height * 4 * 4 );
+	colorSumBuffer = (int *)Mem_Alloc( width * height * 4 * 4, TAG_RENDERBUMP);
 	memset( sumBuffer, 0, width * height * 4 * 4 );
 
 	flat = false;
@@ -1523,11 +1532,11 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 						} else {
 							for ( k = 0 ; k < 3 ; k++ ) {
 								int		v;
-								float	*n;
+								const float	*n;
 								float	*a;
 
 								v = mesh->indexes[j+k];
-								n = mesh->verts[v].normal.ToFloatPtr();
+								n = mesh->verts[v].GetNormalRaw().ToFloatPtr();
 
 								// NULLNORMAL is used by the artists to force an area to reflect no
 								// light at all

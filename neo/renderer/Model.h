@@ -120,7 +120,10 @@ struct srfTriangles_t
 	vertCacheHandle_t			indexCache;				// GL_INDEX_TYPE
 	vertCacheHandle_t			ambientCache;			// idDrawVert
 	vertCacheHandle_t			shadowCache;			// idVec4
-	
+
+	bool						facePlanesCalculated;	// set when the face planes have been calculated
+	idPlane* facePlanes;
+
 	DISALLOW_COPY_AND_ASSIGN( srfTriangles_t );
 };
 
