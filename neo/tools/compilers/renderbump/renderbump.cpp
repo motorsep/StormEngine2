@@ -28,6 +28,8 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "precompiled.h"
 
+
+#include "framework/Common_local.h"
 //#include "sys/platform.h"
 #include "renderer/ModelManager.h"
 #include "renderer/tr_local.h"
@@ -653,12 +655,12 @@ static void RasterizeTriangle( const srfTriangles_t *lowMesh, const idVec3 *lowM
 	// nothing we do here is going to matter performance-wise
 
 	// adjust for resolution and texel centers
-	verts[0][0] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+0] ].st[0] * rb->width - 0.5;
-	verts[1][0] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+1] ].st[0] * rb->width - 0.5;
-	verts[2][0] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+2] ].st[0] * rb->width - 0.5;
-	verts[0][1] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+0] ].st[1] * rb->height - 0.5;
-	verts[1][1] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+1] ].st[1] * rb->height - 0.5;
-	verts[2][1] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+2] ].st[1] * rb->height - 0.5;
+	verts[0][0] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+0] ].GetTexCoord()[0] * rb->width - 0.5;
+	verts[1][0] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+1] ].GetTexCoord()[0] * rb->width - 0.5;
+	verts[2][0] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+2] ].GetTexCoord()[0] * rb->width - 0.5;
+	verts[0][1] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+0] ].GetTexCoord()[1] * rb->height - 0.5;
+	verts[1][1] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+1] ].GetTexCoord()[1] * rb->height - 0.5;
+	verts[2][1] = lowMesh->verts[ lowMesh->indexes[lowFaceNum*3+2] ].GetTexCoord()[1] * rb->height - 0.5;
 
 	// find the texcoord bounding box
 	bounds[0][0] = 99999;
@@ -933,7 +935,7 @@ RenderBumpTriangles
 */
 static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 	int		i, j;
-
+#if 0
 	RB_SetGL2D();
 
 	qglDisable( GL_CULL_FACE );
@@ -953,7 +955,7 @@ static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 	qglClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	qglColor3f( 1, 1, 1 );
-
+#endif
 	// create smoothed normals for the surface, which might be
 	// different than the normals at the vertexes if the
 	// surface uses unsmoothedNormals, which only takes the
@@ -978,24 +980,13 @@ static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 		lowMeshNormals[lowMesh->indexes[i]].Normalize();
 	}
 
-
+	commonLocal.LoadPacifierBinarizeProgressTotal(lowMesh->numIndexes);
 	// rasterize each low poly face
 	for ( j = 0 ; j < lowMesh->numIndexes ; j+=3 ) {
-		// pump the event loop so the window can be dragged around
-		Sys_GenerateEvents();
-
 		RasterizeTriangle( lowMesh, lowMeshNormals, j/3, rb );
 
-		qglClearColor(1,0,0,1);
-		qglClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-		qglRasterPos2f( 0, 1 );
-		qglPixelZoom( glConfig.nativeScreenWidth / (float)rb->width, glConfig.nativeScreenHeight/ (float)rb->height );
-		qglDrawPixels( rb->width, rb->height, GL_RGBA, GL_UNSIGNED_BYTE, rb->localPic );
-		qglPixelZoom( 1, 1 );
-		qglFlush();
-		GLimp_SwapBuffers();
+		commonLocal.LoadPacifierBinarizeProgressIncrement(3);
 	}
-
 	Mem_Free( lowMeshNormals );
 }
 
@@ -1203,11 +1194,13 @@ void RenderBump_f( const idCmdArgs &args ) {
 		common->Error( "Can't load model %s", source.c_str() );
 	}
 
+	commonLocal.LoadPacifierBinarizeFilename(source.c_str(), "RenderBump");
 	renderBumps = (renderBump_t *)R_StaticAlloc( lowPoly->NumSurfaces() * sizeof( *renderBumps ) );
 	numRenderBumps = 0;
-	for ( i = 0 ; i < lowPoly->NumSurfaces() ; i++ ) {
+	int lowPolySurf = lowPoly->NumSurfaces();
+	for ( i = 0 ; i < lowPolySurf; i++ ) {
 		const modelSurface_t	*ms = lowPoly->Surface( i );
-
+		commonLocal.LoadPacifierBinarizeInfo(va("Surface (%d / %d)", i,lowPolySurf));
 		// default options
 		memset( &opt, 0, sizeof( opt ) );
 		opt.width = 512;
@@ -1215,7 +1208,6 @@ void RenderBump_f( const idCmdArgs &args ) {
 		opt.antiAlias = 1;
 		opt.outline = 8;
 		opt.traceFrac = 0.05f;
-
 		// parse the renderbump parameters for this surface
 		cmdLine = ms->shader->GetRenderBump();
 
@@ -1306,6 +1298,7 @@ void RenderBump_f( const idCmdArgs &args ) {
 			break;
 		}
 
+
 		// create a new renderbump if needed
 		if ( j == numRenderBumps ) {
 			numRenderBumps++;
@@ -1314,7 +1307,6 @@ void RenderBump_f( const idCmdArgs &args ) {
 
 			InitRenderBump( rb );
 		}
-
 		// render the triangles for this surface
 		RenderBumpTriangles( ms->geometry, rb );
 	}
@@ -1331,7 +1323,7 @@ void RenderBump_f( const idCmdArgs &args ) {
 	endTime = Sys_Milliseconds();
 	common->Printf( "%5.2f seconds for renderBump\n", ( endTime - startTime ) / 1000.0 );
 	common->Printf( "---------- RenderBump Completed ----------\n" );
-
+	commonLocal.LoadPacifierBinarizeEnd();
 	// stop updating the screen as we print
 	common->SetRefreshOnPrint( false );
 }
