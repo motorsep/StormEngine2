@@ -28,11 +28,14 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "precompiled.h"
 
+
+#include "framework/Common_local.h"
 //#include "sys/platform.h"
 #include "renderer/ModelManager.h"
 #include "renderer/tr_local.h"
 
 #include "tools/compilers/compiler_public.h"
+#include "tools/compilers/dmap/renderer/Dmap_tr_local.h"
 
 #ifdef WIN32
 #include <windows.h>
@@ -58,6 +61,9 @@ If you have questions concerning this license or the applicable additional terms
 
 
 */
+
+
+void GLimp_SwapBuffers();
 
 #define MAX_QPATH		256
 
@@ -100,8 +106,8 @@ typedef struct {
 	bool	saveColorMap;
 	float	traceFrac;
 	float	traceDist;
-	srfTriangles_t	*mesh;			// high poly mesh
-	idRenderModel	*highModel;
+	srfDmapTriangles_t	*mesh;			// high poly mesh
+	idDmapRenderModel*highModel;
 	triHash_t	*hash;
 } renderBump_t;
 
@@ -193,7 +199,7 @@ static void OutlineNormalMap( byte *data, int width, int height, int emptyR, int
 	idVec3	normal;
 	byte	*out;
 
-	orig = (byte *)Mem_Alloc( width * height * 4 );
+	orig = (byte *)Mem_Alloc( width * height * 4, TAG_RENDERBUMP );
 	memcpy( orig, data, width * height * 4 );
 
 	for ( i = 0 ; i < width ; i++ ) {
@@ -248,7 +254,7 @@ static void OutlineColorMap( byte *data, int width, int height, int emptyR, int 
 	idVec3	normal;
 	byte	*out;
 
-	orig = (byte *)Mem_Alloc( width * height * 4 );
+	orig = (byte *)Mem_Alloc( width * height * 4, TAG_RENDERBUMP);
 	memcpy( orig, data, width * height * 4 );
 
 	for ( i = 0 ; i < width ; i++ ) {
@@ -310,14 +316,14 @@ static void FreeTriHash( triHash_t *hash ) {
 CreateTriHash
 ================
 */
-static triHash_t *CreateTriHash( const srfTriangles_t *highMesh ) {
+static triHash_t *CreateTriHash( const srfDmapTriangles_t *highMesh ) {
 	triHash_t	*hash;
 	int			i, j, k, l;
 	idBounds	bounds, triBounds;
 	int			iBounds[2][3];
 	int			maxLinks, numLinks;
 
-	hash = (triHash_t *)Mem_Alloc( sizeof( *hash ) );
+	hash = (triHash_t *)Mem_Alloc( sizeof( *hash ), TAG_RENDERBUMP);
 	memset( hash, 0, sizeof( *hash ) );
 
 	// find the bounding volume for the mesh
@@ -343,7 +349,7 @@ static triHash_t *CreateTriHash( const srfTriangles_t *highMesh ) {
 
 	numLinks = 0;
 
-	hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ) );
+	hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ), TAG_RENDERBUMP);
 	hash->numLinkBlocks++;
 	maxLinks = hash->numLinkBlocks * MAX_LINKS_PER_BLOCK;
 
@@ -377,7 +383,7 @@ static triHash_t *CreateTriHash( const srfTriangles_t *highMesh ) {
 			for ( k = iBounds[0][1] ; k <= iBounds[1][1] ; k++ ) {
 				for ( l = iBounds[0][2] ; l <= iBounds[1][2] ; l++ ) {
 					if ( numLinks == maxLinks ) {
-						hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ) );
+						hash->linkBlocks[hash->numLinkBlocks] = (triLink_t *)Mem_Alloc( MAX_LINKS_PER_BLOCK * sizeof( triLink_t ), TAG_RENDERBUMP);
 						hash->numLinkBlocks++;
 						maxLinks = hash->numLinkBlocks * MAX_LINKS_PER_BLOCK;
 					}
@@ -406,7 +412,7 @@ Returns the distance from the point to the intersection, or DIST_NO_INTERSECTION
 =================
 */
 #define	DIST_NO_INTERSECTION	-999999999.0f
-static float TraceToMeshFace( const srfTriangles_t *highMesh, int faceNum,
+static float TraceToMeshFace( const srfDmapTriangles_t *highMesh, int faceNum,
 							 float minDist, float maxDist,
 							const idVec3 &point, const idVec3 &normal, idVec3 &sampledNormal,
 							byte sampledColor[4] ) {
@@ -488,7 +494,7 @@ static float TraceToMeshFace( const srfTriangles_t *highMesh, int faceNum,
 	// triangularly interpolate the normals to the sample point
 	sampledNormal = vec3_origin;
 	for ( j = 0 ; j < 3 ; j++ ) {
-		sampledNormal += bary[j] * highMesh->verts[ highMesh->indexes[ faceNum * 3 + j ] ].normal;
+		sampledNormal += bary[j] * highMesh->verts[highMesh->indexes[faceNum * 3 + j]].normal;
 	}
 	sampledNormal.Normalize();
 
@@ -628,7 +634,7 @@ It is ok for the texcoords to wrap around, the rasterization
 will deal with it properly.
 ================
 */
-static void RasterizeTriangle( const srfTriangles_t *lowMesh, const idVec3 *lowMeshNormals, int lowFaceNum,
+static void RasterizeTriangle( const srfDmapTriangles_t *lowMesh, const idVec3 *lowMeshNormals, int lowFaceNum,
 							 renderBump_t *rb ) {
 	int		i, j, k;
 	float	bounds[2][2];
@@ -776,8 +782,9 @@ static void RasterizeTriangle( const srfTriangles_t *lowMesh, const idVec3 *lowM
 				traceNormal += bary[k] * lowMeshNormals[ index ];
 
 				normal += bary[k] * lowMesh->verts[ index ].normal;
-				tangents[0] += bary[k] * lowMesh->verts[ index ].tangents[0];
-				tangents[1] += bary[k] * lowMesh->verts[ index ].tangents[1];
+				//TODO: These next two lines may be swapped
+				tangents[0] += bary[k] * lowMesh->verts[index].tangents[0];
+				tangents[1] += bary[k] * lowMesh->verts[index].tangents[1];
 			}
 
 #if 0
@@ -859,7 +866,7 @@ Frees the model and returns a new model with all triangles combined
 into one surface
 ================
 */
-static idRenderModel *CombineModelSurfaces( idRenderModel *model ) {
+static idDmapRenderModel* CombineModelSurfaces(idDmapRenderModel* model ) {
 	int		totalVerts;
 	int		totalIndexes;
 	int		numIndexes;
@@ -870,28 +877,32 @@ static idRenderModel *CombineModelSurfaces( idRenderModel *model ) {
 	totalIndexes = 0;
 
 	for ( i = 0 ; i < model->NumSurfaces() ; i++ ) {
-		const modelSurface_t	*surf = model->Surface(i);
+		const dmapModelSurface_t* surf = model->Surface(i);
 
 		totalVerts += surf->geometry->numVerts;
 		totalIndexes += surf->geometry->numIndexes;
 	}
 
-	srfTriangles_t *newTri = R_AllocStaticTriSurf();
-	R_AllocStaticTriSurfVerts( newTri, totalVerts );
-	R_AllocStaticTriSurfIndexes( newTri, totalIndexes );
+	srfDmapTriangles_t* newTri = R_AllocStaticTriSurfDmap();
+	R_AllocStaticTriSurfVertsDmap( newTri, totalVerts );
+	R_AllocStaticTriSurfIndexesDmap( newTri, totalIndexes );
 
 	newTri->numVerts = totalVerts;
 	newTri->numIndexes = totalIndexes;
 
 	newTri->bounds.Clear();
 
-	idDrawVert *verts = newTri->verts;
+	idDmapDrawVert *verts = newTri->verts;
+#if 1
+	uint* indexes = newTri->indexes;
+#else
 	glIndex_t *indexes = newTri->indexes;
+#endif
 	numIndexes = 0;
 	numVerts = 0;
 	for ( i = 0 ; i < model->NumSurfaces() ; i++ ) {
-		const modelSurface_t *surf = model->Surface(i);
-		const srfTriangles_t *tri = surf->geometry;
+		const dmapModelSurface_t*surf = model->Surface(i);
+		const srfDmapTriangles_t *tri = surf->geometry;
 
 		memcpy( verts + numVerts, tri->verts, tri->numVerts * sizeof( tri->verts[0] ) );
 		for ( j = 0 ; j < tri->numIndexes ; j++ ) {
@@ -902,16 +913,16 @@ static idRenderModel *CombineModelSurfaces( idRenderModel *model ) {
 		numVerts += tri->numVerts;
 	}
 
-	modelSurface_t surf;
+	dmapModelSurface_t surf;
 
 	surf.id = 0;
 	surf.geometry = newTri;
 	surf.shader = tr.defaultMaterial;
 
-	idRenderModel *newModel = renderModelManager->AllocModel();
+	idDmapRenderModel *newModel = dmapRenderModelManager->AllocModel();
 	newModel->AddSurface( surf );
 
-	renderModelManager->FreeModel( model );
+	dmapRenderModelManager->FreeModel( model );
 
 	return newModel;
 }
@@ -922,9 +933,9 @@ RenderBumpTriangles
 
 ==============
 */
-static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
+static void RenderBumpTriangles( srfDmapTriangles_t *lowMesh, renderBump_t *rb ) {
 	int		i, j;
-
+#if 0
 	RB_SetGL2D();
 
 	qglDisable( GL_CULL_FACE );
@@ -944,16 +955,16 @@ static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 	qglClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
 	qglColor3f( 1, 1, 1 );
-
+#endif
 	// create smoothed normals for the surface, which might be
 	// different than the normals at the vertexes if the
 	// surface uses unsmoothedNormals, which only takes the
 	// normal from a single triangle.  We need properly smoothed
 	// normals to make sure that the traces always go off normal
 	// to the true surface.
-	idVec3	*lowMeshNormals = (idVec3 *)Mem_ClearedAlloc( lowMesh->numVerts * sizeof( *lowMeshNormals ) );
-	R_DeriveFacePlanes( lowMesh );
-	R_CreateSilIndexes( lowMesh );	// recreate, merging the mirrored verts back together
+	idVec3	*lowMeshNormals = (idVec3 *)Mem_ClearedAlloc( lowMesh->numVerts * sizeof( *lowMeshNormals ), TAG_RENDERBUMP);
+	R_DeriveFacePlanesDmap( lowMesh );
+	R_CreateSilIndexesDmap( lowMesh );	// recreate, merging the mirrored verts back together
 	const idPlane *planes = lowMesh->facePlanes;
 	for ( i = 0 ; i < lowMesh->numIndexes ; i += 3, planes++ ) {
 		for ( j = 0 ; j < 3 ; j++ ) {
@@ -969,24 +980,13 @@ static void RenderBumpTriangles( srfTriangles_t *lowMesh, renderBump_t *rb ) {
 		lowMeshNormals[lowMesh->indexes[i]].Normalize();
 	}
 
-
+	commonLocal.LoadPacifierBinarizeProgressTotal(lowMesh->numIndexes);
 	// rasterize each low poly face
 	for ( j = 0 ; j < lowMesh->numIndexes ; j+=3 ) {
-		// pump the event loop so the window can be dragged around
-		Sys_GenerateEvents();
-
 		RasterizeTriangle( lowMesh, lowMeshNormals, j/3, rb );
 
-		qglClearColor(1,0,0,1);
-		qglClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-		qglRasterPos2f( 0, 1 );
-		qglPixelZoom( glConfig.vidWidth / (float)rb->width, glConfig.vidHeight / (float)rb->height );
-		qglDrawPixels( rb->width, rb->height, GL_RGBA, GL_UNSIGNED_BYTE, rb->localPic );
-		qglPixelZoom( 1, 1 );
-		qglFlush();
-		GLimp_SwapBuffers();
+		commonLocal.LoadPacifierBinarizeProgressIncrement(3);
 	}
-
 	Mem_Free( lowMeshNormals );
 }
 
@@ -1002,7 +1002,7 @@ static void WriteRenderBump( renderBump_t *rb, int outLinePixels ) {
 	int		i;
 	idStr	filename;
 
-	renderModelManager->FreeModel( rb->highModel );
+	dmapRenderModelManager->FreeModel( rb->highModel );
 
 	FreeTriHash( rb->hash );
 
@@ -1031,15 +1031,15 @@ static void WriteRenderBump( renderBump_t *rb, int outLinePixels ) {
 		byte	*old;
 
 		old = rb->localPic;
-		rb->localPic = R_MipMap( rb->localPic, width, height, false );
+		rb->localPic = R_MipMap( rb->localPic, width, height );
 		Mem_Free( old );
 
 		old = rb->globalPic;
-		rb->globalPic = R_MipMap( rb->globalPic, width, height, false );
+		rb->globalPic = R_MipMap( rb->globalPic, width, height );
 		Mem_Free( old );
 
 		old = rb->colorPic;
-		rb->colorPic = R_MipMap( rb->colorPic, width, height, false );
+		rb->colorPic = R_MipMap( rb->colorPic, width, height );
 		Mem_Free( old );
 
 		width >>= 1;
@@ -1050,14 +1050,14 @@ static void WriteRenderBump( renderBump_t *rb, int outLinePixels ) {
 	filename = rb->outputName;
 	filename.SetFileExtension( ".tga" );
 	common->Printf( "writing %s (%i,%i)\n", filename.c_str(), width, height );
-	R_WriteTGA( filename, rb->localPic, width, height );
+	R_WriteTGA( filename, rb->localPic, width, height,false,"fs_basepath");
 
 	if ( rb->saveGlobalMap ) {
 		filename = rb->outputName;
 		filename.StripFileExtension();
 		filename.Append( "_global.tga" );
 		common->Printf( "writing %s (%i,%i)\n", filename.c_str(), width, height );
-		R_WriteTGA( filename, rb->globalPic, width, height );
+		R_WriteTGA( filename, rb->globalPic, width, height,false, "fs_basepath");
 	}
 
 	if ( rb->saveColorMap ) {
@@ -1065,7 +1065,7 @@ static void WriteRenderBump( renderBump_t *rb, int outLinePixels ) {
 		filename.StripFileExtension();
 		filename.Append( "_color.tga" );
 		common->Printf( "writing %s (%i,%i)\n", filename.c_str(), width, height );
-		R_WriteTGA( filename, rb->colorPic, width, height );
+		R_WriteTGA( filename, rb->colorPic, width, height, false, "fs_basepath");
 	}
 
 	Mem_Free( rb->localPic );
@@ -1080,14 +1080,14 @@ InitRenderBump
 ===============
 */
 static void InitRenderBump( renderBump_t *rb ) {
-	srfTriangles_t	*mesh;
+	srfDmapTriangles_t	*mesh;
 	idBounds	bounds;
 	int			i, c;
 
 	// load the ase file
 	common->Printf( "loading %s...\n", rb->highName );
 
-	rb->highModel = renderModelManager->AllocModel();
+	rb->highModel = dmapRenderModelManager->AllocModel();
 	rb->highModel->PartialInitFromFile( rb->highName );
 	if ( !rb->highModel ) {
 		common->Error( "failed to load %s", rb->highName );
@@ -1098,18 +1098,18 @@ static void InitRenderBump( renderBump_t *rb ) {
 		rb->highModel = CombineModelSurfaces( rb->highModel );
 	}
 
-	const modelSurface_t *surf = rb->highModel->Surface( 0 );
+	const dmapModelSurface_t *surf = rb->highModel->Surface( 0 );
 	mesh = surf->geometry;
 
 	rb->mesh = mesh;
 
-	R_DeriveFacePlanes( mesh );
+	R_DeriveFacePlanesDmap( mesh );
 
 	// create a face hash table to accelerate the tracing
 	rb->hash = CreateTriHash( mesh );
 
 	// bound the entire file
-	R_BoundTriSurf( mesh );
+	R_BoundTriSurfDmap( mesh );
 	bounds = mesh->bounds;
 
 	// the traceDist will be the traceFrac times the larges bounds axis
@@ -1127,16 +1127,16 @@ static void InitRenderBump( renderBump_t *rb ) {
 	c = rb->width * rb->height * 4;
 
 	// local normal map
-	rb->localPic = (byte *)Mem_Alloc( c );
+	rb->localPic = (byte *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	// global (object space, not surface space) normal map
-	rb->globalPic = (byte *)Mem_Alloc( c );
+	rb->globalPic = (byte *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	// color pic for artist reference
-	rb->colorPic = (byte *)Mem_Alloc( c );
+	rb->colorPic = (byte *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	// edgeDistance for marking outside-the-triangle traces
-	rb->edgeDistances = (float *)Mem_Alloc( c );
+	rb->edgeDistances = (float *)Mem_Alloc( c, TAG_RENDERBUMP);
 
 	for ( i = 0 ; i < c ; i+=4 ) {
 		rb->localPic[i+0] = 128;
@@ -1166,7 +1166,7 @@ RenderBump_f
 ==============
 */
 void RenderBump_f( const idCmdArgs &args ) {
-	idRenderModel	*lowPoly;
+	idDmapRenderModel	*lowPoly;
 	idStr	source;
 	int		i, j;
 	const char	*cmdLine;
@@ -1185,20 +1185,24 @@ void RenderBump_f( const idCmdArgs &args ) {
 
 	common->Printf( "----- Renderbump %s -----\n", args.Argv( 1 ) );
 
+	R_InitTriSurfDataDmap();
+	R_InitMaterialsDmap(); // Initialize Dmap Materials.
 	startTime = Sys_Milliseconds();
 
 	// get the lowPoly model
 	source = args.Argv( 1 );
-	lowPoly = renderModelManager->CheckModel( source );
+	lowPoly = dmapRenderModelManager->CheckModel( source );
 	if ( !lowPoly ) {
 		common->Error( "Can't load model %s", source.c_str() );
 	}
 
+	commonLocal.LoadPacifierBinarizeFilename(source.c_str(), "RenderBump");
 	renderBumps = (renderBump_t *)R_StaticAlloc( lowPoly->NumSurfaces() * sizeof( *renderBumps ) );
 	numRenderBumps = 0;
-	for ( i = 0 ; i < lowPoly->NumSurfaces() ; i++ ) {
-		const modelSurface_t	*ms = lowPoly->Surface( i );
-
+	int lowPolySurf = lowPoly->NumSurfaces();
+	for ( i = 0 ; i < lowPolySurf; i++ ) {
+		const dmapModelSurface_t	*ms = lowPoly->Surface( i );
+		commonLocal.LoadPacifierBinarizeInfo(va("Surface (%d / %d)", i,lowPolySurf));
 		// default options
 		memset( &opt, 0, sizeof( opt ) );
 		opt.width = 512;
@@ -1206,7 +1210,6 @@ void RenderBump_f( const idCmdArgs &args ) {
 		opt.antiAlias = 1;
 		opt.outline = 8;
 		opt.traceFrac = 0.05f;
-
 		// parse the renderbump parameters for this surface
 		cmdLine = ms->shader->GetRenderBump();
 
@@ -1297,6 +1300,7 @@ void RenderBump_f( const idCmdArgs &args ) {
 			break;
 		}
 
+
 		// create a new renderbump if needed
 		if ( j == numRenderBumps ) {
 			numRenderBumps++;
@@ -1305,7 +1309,6 @@ void RenderBump_f( const idCmdArgs &args ) {
 
 			InitRenderBump( rb );
 		}
-
 		// render the triangles for this surface
 		RenderBumpTriangles( ms->geometry, rb );
 	}
@@ -1318,11 +1321,11 @@ void RenderBump_f( const idCmdArgs &args ) {
 	}
 
 	R_StaticFree( renderBumps );
-
+	R_ShutdownTriSurfData();
 	endTime = Sys_Milliseconds();
 	common->Printf( "%5.2f seconds for renderBump\n", ( endTime - startTime ) / 1000.0 );
 	common->Printf( "---------- RenderBump Completed ----------\n" );
-
+	commonLocal.LoadPacifierBinarizeEnd();
 	// stop updating the screen as we print
 	common->SetRefreshOnPrint( false );
 }
@@ -1351,10 +1354,13 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 	idStr	source;
 	int		i;
 	idBounds	bounds;
-	srfTriangles_t	*mesh;
+	srfDmapTriangles_t	*mesh;
 
 	// update the screen as we print
 	common->SetRefreshOnPrint( true );
+
+	R_InitTriSurfDataDmap();
+	R_InitMaterialsDmap(); // Initialize Dmap Materials.
 
 	width = height = 256;
 
@@ -1393,7 +1399,7 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 	// need tangent and shadow information
 	source = args.Argv( i );
 
-	idRenderModel *highPolyModel = renderModelManager->AllocModel();
+	idDmapRenderModel *highPolyModel = dmapRenderModelManager->AllocModel();
 
 	highPolyModel->PartialInitFromFile( source );
 
@@ -1407,11 +1413,11 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 	}
 
 	// create normals if not present in file
-	const modelSurface_t *surf = highPolyModel->Surface( 0 );
+	const dmapModelSurface_t *surf = highPolyModel->Surface( 0 );
 	mesh = surf->geometry;
 
 	// bound the entire file
-	R_BoundTriSurf( mesh );
+	R_BoundTriSurfDmap( mesh );
 	bounds = mesh->bounds;
 
 	SaveWindow();
@@ -1450,11 +1456,11 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 	bool	flat;
 	int		sample;
 
-	sumBuffer = (int *)Mem_Alloc( width * height * 4 * 4 );
+	sumBuffer = (int *)Mem_Alloc( width * height * 4 * 4, TAG_RENDERBUMP);
 	memset( sumBuffer, 0, width * height * 4 * 4 );
-	buffer = (byte *)Mem_Alloc( width * height * 4 );
+	buffer = (byte *)Mem_Alloc( width * height * 4, TAG_RENDERBUMP);
 
-	colorSumBuffer = (int *)Mem_Alloc( width * height * 4 * 4 );
+	colorSumBuffer = (int *)Mem_Alloc( width * height * 4 * 4, TAG_RENDERBUMP);
 	memset( sumBuffer, 0, width * height * 4 * 4 );
 
 	flat = false;
@@ -1472,7 +1478,7 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 
 			qglBegin( GL_TRIANGLES );
 			for ( i = 0 ; i < highPolyModel->NumSurfaces() ; i++ ) {
-				const modelSurface_t *surf = highPolyModel->Surface( i );
+				const dmapModelSurface_t *surf = highPolyModel->Surface( i );
 
 				mesh = surf->geometry;
 
@@ -1523,7 +1529,7 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 						} else {
 							for ( k = 0 ; k < 3 ; k++ ) {
 								int		v;
-								float	*n;
+								const float	*n;
 								float	*a;
 
 								v = mesh->indexes[j+k];
@@ -1627,13 +1633,13 @@ void RenderBumpFlat_f( const idCmdArgs &args ) {
 
 
 	// free the model
-	renderModelManager->FreeModel( highPolyModel );
+	dmapRenderModelManager->FreeModel( highPolyModel );
 
 	// free our work buffer
 	Mem_Free( buffer );
 	Mem_Free( sumBuffer );
 	Mem_Free( colorSumBuffer );
-
+	R_ShutdownTriSurfData();
 	RestoreWindow();
 
 	// stop updating the screen as we print

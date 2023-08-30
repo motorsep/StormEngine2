@@ -219,6 +219,11 @@ void R_FreeStaticTriSurf( srfTriangles_t* tri )
 		}
 	}
 	
+	if (!tri->facePlanes) {
+		Mem_Free(tri->facePlanes);
+		tri->facePlanes = NULL;
+	}
+
 	if( !tri->referencedIndexes )
 	{
 		if( tri->indexes != NULL )
@@ -407,6 +412,21 @@ void R_AllocStaticTriSurfPreLightShadowVerts( srfTriangles_t* tri, int numVerts 
 	assert( tri->preLightShadowVertexes == NULL );
 	tri->preLightShadowVertexes = ( idShadowVert* )Mem_Alloc16( numVerts * sizeof( idShadowVert ), TAG_TRI_SHADOW );
 }
+
+
+/*
+=================
+R_AllocStaticTriSurfPlanes
+=================
+*/
+void R_AllocStaticTriSurfPlanes(srfTriangles_t* tri, int numIndexes) {
+	if (tri->facePlanes) {
+		Mem_Free(tri->facePlanes);
+	}
+	
+	tri->facePlanes = (idPlane*)Mem_Alloc(numIndexes / 3 * sizeof(idPlane), TAG_TRI_PLANES);
+}
+
 
 /*
 =================
@@ -2205,4 +2225,70 @@ void R_CreateStaticBuffersForTri( srfTriangles_t& tri )
 		tri.staticShadowVertexes = NULL;
 #endif
 	}
+}
+
+
+
+/*
+=====================
+R_DeriveFacePlanes
+
+Writes the facePlanes values, overwriting existing ones if present
+=====================
+*/
+void R_DeriveFacePlanes(srfTriangles_t* tri) {
+	idPlane* planes;
+
+	if (!tri->facePlanes) {
+		R_AllocStaticTriSurfPlanes(tri, tri->numIndexes);
+	}
+	planes = tri->facePlanes;
+
+#if 0
+	//TODO: Port SIMD Processor from DHEWM3.
+
+	SIMDProcessor->DeriveTriPlanes(planes, tri->verts, tri->numVerts, tri->indexes, tri->numIndexes);
+
+#else
+
+	for (int i = 0; i < tri->numIndexes; i += 3, planes++) {
+		int		i1, i2, i3;
+		idVec3	d1, d2, normal;
+		idVec3* v1, * v2, * v3;
+
+		i1 = tri->indexes[i + 0];
+		i2 = tri->indexes[i + 1];
+		i3 = tri->indexes[i + 2];
+
+		v1 = &tri->verts[i1].xyz;
+		v2 = &tri->verts[i2].xyz;
+		v3 = &tri->verts[i3].xyz;
+
+		d1[0] = v2->x - v1->x;
+		d1[1] = v2->y - v1->y;
+		d1[2] = v2->z - v1->z;
+
+		d2[0] = v3->x - v1->x;
+		d2[1] = v3->y - v1->y;
+		d2[2] = v3->z - v1->z;
+
+		normal[0] = d2.y * d1.z - d2.z * d1.y;
+		normal[1] = d2.z * d1.x - d2.x * d1.z;
+		normal[2] = d2.x * d1.y - d2.y * d1.x;
+
+		float sqrLength, invLength;
+
+		sqrLength = normal.x * normal.x + normal.y * normal.y + normal.z * normal.z;
+		invLength = idMath::RSqrt(sqrLength);
+
+		(*planes)[0] = normal[0] * invLength;
+		(*planes)[1] = normal[1] * invLength;
+		(*planes)[2] = normal[2] * invLength;
+
+		planes->FitThroughPoint(*v1);
+	}
+
+#endif
+
+	tri->facePlanesCalculated = true;
 }
