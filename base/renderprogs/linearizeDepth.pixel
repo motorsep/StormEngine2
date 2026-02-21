@@ -37,11 +37,11 @@ void main( PS_IN fragment, out PS_OUT result ) {
 	float ndcZ = windowZ * 2.0 - 1.0;
 
 	// Linear depth from projection matrix components:
-	// depth = -d / (c + ndcZ)  where c = projMatrix[2][2], d = projMatrix[2][3]
+	// depth = d / (c + ndcZ)  where c = projMatrix[2][2], d = projMatrix[2][3]
 	float c = rpUser0.x; // projectionMatrix[2][2], typically -0.999
 	float d = rpUser0.y; // projectionMatrix[2][3], typically -2*zNear
 
-	float linearDepth = -d / ( c + ndcZ );
+	float linearDepth = d / ( c + ndcZ );
 
 	result.color = float4( linearDepth, linearDepth, linearDepth, 1.0 );
 }

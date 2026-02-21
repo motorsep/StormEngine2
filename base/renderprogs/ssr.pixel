@@ -170,19 +170,23 @@ void main( PS_IN fragment, out PS_OUT result ) {
 			// Binary search refinement for precise hit location
 			float2 refinedUV = marchUV;
 			float2 refineStep = stepDelta * 0.5;
+			float refT = t;
+			float refTStep = stepSize * 0.5;
 			for ( float r = 0.0; r < 5.0; r = r + 1.0 ) {
 				float refDepth = GetLinearDepth( refinedUV );
-				float refT = ( t - stepSize * 0.5 ) + stepSize * 0.5;
 				float3 refExpected = rayStart + ( rayEnd - rayStart ) * refT;
 				float refExpDepth = -refExpected.z;
 				float refDiff = refDepth - refExpDepth;
 
 				if ( refDiff > 0.0 ) {
 					refinedUV = refinedUV - refineStep;
+					refT = refT - refTStep;
 				} else {
 					refinedUV = refinedUV + refineStep;
+					refT = refT + refTStep;
 				}
 				refineStep = refineStep * 0.5;
+				refTStep = refTStep * 0.5;
 			}
 
 			hitColor = tex2D( samp0, refinedUV ).rgb;
