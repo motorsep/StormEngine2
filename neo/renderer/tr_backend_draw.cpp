@@ -4329,6 +4329,322 @@ void RB_MotionBlur()
 
 /*
 ==================
+RB_SSAO
+
+Screen-Space Ambient Occlusion pass.
+Renders AO from depth buffer, bilateral blurs it, then applies
+multiplicatively to the scene framebuffer.
+==================
+*/
+/*
+==================
+RB_LinearizeDepth
+
+Converts the hardware depth buffer to a linear depth texture (RGBA16F).
+This provides a high-precision linear depth for SSAO and SSR,
+independent of the hardware depth format.
+==================
+*/
+static void RB_LinearizeDepth()
+{
+	if( !r_useSSAO.GetBool() && !r_useSSR.GetBool() )
+	{
+		return;
+	}
+	if( !backEnd.viewDef->viewEntitys )
+	{
+		return;
+	}
+	if( backEnd.viewDef->isSubview )
+	{
+		return;
+	}
+
+	int screenWidth = renderSystem->GetWidth();
+	int screenHeight = renderSystem->GetHeight();
+
+	// Resize linear depth image if screen size changed
+	if( globalImages->linearDepthImage->GetUploadWidth() != screenWidth
+	 || globalImages->linearDepthImage->GetUploadHeight() != screenHeight )
+	{
+		globalImages->linearDepthImage->Resize( screenWidth, screenHeight );
+		globalFramebuffers->linearDepthFramebuffer->PurgeFramebuffer();
+	}
+
+	globalFramebuffers->linearDepthFramebuffer->Bind();
+	GL_Viewport( 0, 0, screenWidth, screenHeight );
+	GL_Scissor( 0, 0, screenWidth, screenHeight );
+
+	GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS );
+	GL_Cull( CT_TWO_SIDED );
+
+	renderProgManager.BindShader_LinearizeDepth();
+
+	// rpUser0: ( projMatrix[2][2], projMatrix[2][3], 0, 0 )
+	// These are the projection matrix components needed for depth linearization:
+	//   c = projMatrix[2][2] (typically -0.999 for infinite far plane)
+	//   d = projMatrix[2][3] (typically -2*zNear)
+	// linearDepth = -d / (c + ndcZ)
+	float linDepthParm0[4];
+	linDepthParm0[0] = backEnd.viewDef->projectionMatrix[2 * 4 + 2]; // c
+	linDepthParm0[1] = backEnd.viewDef->projectionMatrix[3 * 4 + 2]; // d
+	linDepthParm0[2] = 0.0f;
+	linDepthParm0[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )RENDERPARM_USER, linDepthParm0 );
+
+	GL_SelectTexture( 0 );
+	globalImages->currentDepthImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+}
+
+static void RB_SSAO()
+{
+	if( !r_useSSAO.GetBool() )
+	{
+		return;
+	}
+	if( !backEnd.viewDef->viewEntitys )
+	{
+		return;
+	}
+	if( backEnd.viewDef->isSubview )
+	{
+		return;
+	}
+
+	int screenWidth = renderSystem->GetWidth();
+	int screenHeight = renderSystem->GetHeight();
+
+	// Resize SSAO images if screen size changed
+	if( globalImages->ssaoImage->GetUploadWidth() != screenWidth
+	 || globalImages->ssaoImage->GetUploadHeight() != screenHeight )
+	{
+		globalImages->ssaoImage->Resize( screenWidth, screenHeight );
+		globalImages->ssaoBlurImage->Resize( screenWidth, screenHeight );
+		globalFramebuffers->ssaoFramebuffer->PurgeFramebuffer();
+		globalFramebuffers->ssaoBlurFramebuffer->PurgeFramebuffer();
+	}
+
+	// ============================================================
+	// Pass 1: Compute SSAO into ssaoFramebuffer
+	// ============================================================
+	globalFramebuffers->ssaoFramebuffer->Bind();
+	GL_Viewport( 0, 0, screenWidth, screenHeight );
+	GL_Scissor( 0, 0, screenWidth, screenHeight );
+
+	GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS );
+	GL_Cull( CT_TWO_SIDED );
+
+	renderProgManager.BindShader_SSAO();
+
+	// rpUser0: ( 1/screenWidth, 1/screenHeight, radius, bias )
+	float ssaoParm0[4];
+	ssaoParm0[0] = 1.0f / screenWidth;
+	ssaoParm0[1] = 1.0f / screenHeight;
+	ssaoParm0[2] = r_ssaoRadius.GetFloat();
+	ssaoParm0[3] = r_ssaoBias.GetFloat();
+	SetFragmentParm( ( renderParm_t )RENDERPARM_USER, ssaoParm0 );
+
+	// rpUser1: ( intensity, maxDistance, frameRandom, 0 )
+	float ssaoParm1[4];
+	ssaoParm1[0] = r_ssaoIntensity.GetFloat();
+	ssaoParm1[1] = 1000.0f;
+	ssaoParm1[2] = ( float )( Sys_Milliseconds() & 0xFF ) / 255.0f;
+	ssaoParm1[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 1 ), ssaoParm1 );
+
+	// rpUser2: ( projMatrix[0][0], projMatrix[1][1], 0, 0 )
+	// Projection matrix diagonal for view-space position reconstruction
+	float ssaoParm2[4];
+	ssaoParm2[0] = backEnd.viewDef->projectionMatrix[0 * 4 + 0]; // M[0][0]
+	ssaoParm2[1] = backEnd.viewDef->projectionMatrix[1 * 4 + 1]; // M[1][1]
+	ssaoParm2[2] = 0.0f;
+	ssaoParm2[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 2 ), ssaoParm2 );
+
+	GL_SelectTexture( 0 );
+	globalImages->linearDepthImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+
+	// ============================================================
+	// Pass 2: Horizontal bilateral blur
+	// ============================================================
+	globalFramebuffers->ssaoBlurFramebuffer->Bind();
+
+	renderProgManager.BindShader_SSAOBlur();
+
+	float blurH[4];
+	blurH[0] = 1.0f / screenWidth;
+	blurH[1] = 1.0f / screenHeight;
+	blurH[2] = 1.0f;
+	blurH[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )RENDERPARM_USER, blurH );
+
+	GL_SelectTexture( 0 );
+	globalImages->ssaoImage->Bind();
+	GL_SelectTexture( 1 );
+	globalImages->currentDepthImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+
+	// ============================================================
+	// Pass 3: Vertical bilateral blur
+	// ============================================================
+	globalFramebuffers->ssaoFramebuffer->Bind();
+
+	float blurV[4];
+	blurV[0] = 1.0f / screenWidth;
+	blurV[1] = 1.0f / screenHeight;
+	blurV[2] = 0.0f;
+	blurV[3] = 1.0f;
+	SetFragmentParm( ( renderParm_t )RENDERPARM_USER, blurV );
+
+	GL_SelectTexture( 0 );
+	globalImages->ssaoBlurImage->Bind();
+	GL_SelectTexture( 1 );
+	globalImages->currentDepthImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+
+	// ============================================================
+	// Pass 4: Apply SSAO multiplicatively to the scene
+	// ============================================================
+	if( r_useHDR.GetBool() && !( com_editors ) )
+	{
+		globalFramebuffers->viewFramebuffer->Bind();
+	}
+	else
+	{
+		globalFramebuffers->BindSystemFramebuffer();
+	}
+
+	const idScreenRect& viewport = backEnd.viewDef->viewport;
+	GL_Viewport( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
+	GL_Scissor( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
+
+	// Multiplicative blend: framebuffer = framebuffer * AO
+	GL_State( GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHFUNC_ALWAYS );
+
+	renderProgManager.BindShader_PostProcess();
+
+	float screenCorrectionParm[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
+	SetFragmentParm( RENDERPARM_SCREENCORRECTIONFACTOR, screenCorrectionParm );
+
+	GL_SelectTexture( 0 );
+	globalImages->ssaoImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+}
+
+/*
+==================
+RB_SSR
+
+Screen-Space Reflections pass.
+Traces rays against the depth buffer to find reflection hits,
+then composites reflection color onto the scene.
+==================
+*/
+static void RB_SSR()
+{
+	if( !r_useSSR.GetBool() )
+	{
+		return;
+	}
+	if( !backEnd.viewDef->viewEntitys )
+	{
+		return;
+	}
+	if( backEnd.viewDef->isSubview )
+	{
+		return;
+	}
+
+	int screenWidth = renderSystem->GetWidth();
+	int screenHeight = renderSystem->GetHeight();
+	const idScreenRect& viewport = backEnd.viewDef->viewport;
+
+	// Copy the current scene color so we can read it in the SSR shader
+	GL_SelectTexture( 0 );
+	globalImages->currentRenderImage->CopyFramebuffer( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
+
+	// ============================================================
+	// Compute SSR into ssaoBlurFramebuffer (reuse it)
+	// ============================================================
+	globalFramebuffers->ssaoBlurFramebuffer->Bind();
+	GL_Viewport( 0, 0, screenWidth, screenHeight );
+	GL_Scissor( 0, 0, screenWidth, screenHeight );
+
+	GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS );
+	GL_Cull( CT_TWO_SIDED );
+
+	renderProgManager.BindShader_SSR();
+
+	// rpUser0: ( 1/screenWidth, 1/screenHeight, maxDistance, stride )
+	float ssrParm0[4];
+	ssrParm0[0] = 1.0f / screenWidth;
+	ssrParm0[1] = 1.0f / screenHeight;
+	ssrParm0[2] = r_ssrMaxDistance.GetFloat();
+	ssrParm0[3] = r_ssrStride.GetFloat();
+	SetFragmentParm( ( renderParm_t )RENDERPARM_USER, ssrParm0 );
+
+	// rpUser1: ( intensity, 0, 0, 0 )
+	float ssrParm1[4];
+	ssrParm1[0] = r_ssrIntensity.GetFloat();
+	ssrParm1[1] = 0.0f;
+	ssrParm1[2] = 0.0f;
+	ssrParm1[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 1 ), ssrParm1 );
+
+	// rpUser2: ( projMatrix[0][0], projMatrix[1][1], 0, 0 )
+	// Projection matrix diagonal for view-space position reconstruction and screen projection
+	float ssrParm2[4];
+	ssrParm2[0] = backEnd.viewDef->projectionMatrix[0 * 4 + 0]; // M[0][0]
+	ssrParm2[1] = backEnd.viewDef->projectionMatrix[1 * 4 + 1]; // M[1][1]
+	ssrParm2[2] = 0.0f;
+	ssrParm2[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 2 ), ssrParm2 );
+
+	GL_SelectTexture( 0 );
+	globalImages->currentRenderImage->Bind();
+	GL_SelectTexture( 1 );
+	globalImages->linearDepthImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+
+	// ============================================================
+	// Composite SSR onto the scene with premultiplied alpha blending
+	// ============================================================
+	if( r_useHDR.GetBool() && !( com_editors ) )
+	{
+		globalFramebuffers->viewFramebuffer->Bind();
+	}
+	else
+	{
+		globalFramebuffers->BindSystemFramebuffer();
+	}
+
+	GL_Viewport( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
+	GL_Scissor( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
+
+	// Premultiplied alpha blend: result = src + dst * (1 - srcAlpha)
+	GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA | GLS_DEPTHFUNC_ALWAYS );
+
+	renderProgManager.BindShader_PostProcess();
+
+	float screenCorrectionParm[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
+	SetFragmentParm( RENDERPARM_SCREENCORRECTIONFACTOR, screenCorrectionParm );
+
+	GL_SelectTexture( 0 );
+	globalImages->ssaoBlurImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+}
+
+/*
+==================
 RB_DrawView
 
 StereoEye will always be 0 in mono modes, or -1 / 1 in stereo modes.
@@ -4392,7 +4708,12 @@ void RB_DrawView( const void* data, const int stereoEye )
 	
 	// render the scene
 	RB_DrawViewInternal( cmd->viewDef, stereoEye );
-	
+
+	// SSAO/SSR post-processing passes
+	RB_LinearizeDepth();
+	RB_SSAO();
+	RB_SSR();
+
 	RB_MotionBlur();
 
 // ---> sikk - Added - No Motionblur Material Stage Flag

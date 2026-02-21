@@ -1101,6 +1101,18 @@ extern idCVar r_shadowMapCascadeScale;
 extern idCVar r_shadowMapStaticShadowsDistance;
 // RB end
 
+// SSAO
+extern idCVar r_useSSAO;
+extern idCVar r_ssaoRadius;
+extern idCVar r_ssaoIntensity;
+extern idCVar r_ssaoBias;
+
+// SSR
+extern idCVar r_useSSR;
+extern idCVar r_ssrMaxDistance;
+extern idCVar r_ssrStride;
+extern idCVar r_ssrIntensity;
+
 /*
 ====================================================================
 

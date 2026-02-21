@@ -1,0 +1,158 @@
+/*
+===========================================================================
+
+Screen-Space Ambient Occlusion (HBAO-style)
+
+Reconstructs view-space position and normal from pre-linearized depth.
+No G-buffer required - ideal for forward rendering pipelines.
+
+rpUser0: ( 1/screenWidth, 1/screenHeight, radius, bias )
+rpUser1: ( intensity, maxDistance, frameRandom, 0 )
+rpUser2: ( projMatrix[0][0], projMatrix[1][1], 0, 0 )
+
+Textures:
+  samp0 (s0): linear depth texture (linearDepthImage)
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0); // linear depth texture
+
+struct PS_IN {
+	float2 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+// Read pre-linearized depth from the linear depth texture
+static float GetLinearDepth( float2 uv ) {
+	return tex2D( samp0, uv ).x;
+}
+
+// Reconstruct view-space position from UV and linear depth
+static float3 GetViewPos( float2 uv, float depth ) {
+	float2 ndc = uv * 2.0 - 1.0;
+	float3 pos;
+	pos.x = ndc.x * depth / rpUser2.x;
+	pos.y = ndc.y * depth / rpUser2.y;
+	pos.z = -depth;
+	return pos;
+}
+
+// Reconstruct view-space normal from depth using cross product of derivatives
+// Uses min-difference approach for better edge handling
+static float3 ReconstructNormal( float2 uv, float3 viewPos ) {
+	float2 ts = rpUser0.xy;
+
+	float depthL = GetLinearDepth( uv - float2( ts.x, 0.0 ) );
+	float depthR = GetLinearDepth( uv + float2( ts.x, 0.0 ) );
+	float depthD = GetLinearDepth( uv - float2( 0.0, ts.y ) );
+	float depthU = GetLinearDepth( uv + float2( 0.0, ts.y ) );
+
+	float3 posL = GetViewPos( uv - float2( ts.x, 0.0 ), depthL );
+	float3 posR = GetViewPos( uv + float2( ts.x, 0.0 ), depthR );
+	float3 posD = GetViewPos( uv - float2( 0.0, ts.y ), depthD );
+	float3 posU = GetViewPos( uv + float2( 0.0, ts.y ), depthU );
+
+	// Choose the closest neighbor to minimize artifacts at depth discontinuities
+	float3 dx = ( abs( posR.z - viewPos.z ) < abs( posL.z - viewPos.z ) )
+		? ( posR - viewPos ) : ( viewPos - posL );
+	float3 dy = ( abs( posU.z - viewPos.z ) < abs( posD.z - viewPos.z ) )
+		? ( posU - viewPos ) : ( viewPos - posD );
+
+	return normalize( cross( dy, dx ) );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2 uv = fragment.texcoord0;
+	float2 texelSize = rpUser0.xy;
+	float radius = rpUser0.z;
+	float bias = rpUser0.w;
+	float intensity = rpUser1.x;
+	float maxDist = rpUser1.y;
+	float frameRandom = rpUser1.z;
+
+	// Reconstruct view-space data
+	float depth = GetLinearDepth( uv );
+
+	// Early out for sky / very far geometry
+	if ( depth > maxDist ) {
+		result.color = float4( 1.0, 1.0, 1.0, 1.0 );
+		return;
+	}
+
+	float3 viewPos = GetViewPos( uv, depth );
+	float3 normal = ReconstructNormal( uv, viewPos );
+
+	// Compute screen-space radius from world-space radius
+	float screenRadius = ( radius / abs( viewPos.z ) ) * rpUser2.x * 0.5;
+	screenRadius = max( screenRadius, 3.0 ); // minimum 3 pixels
+	screenRadius = min( screenRadius, 128.0 ); // cap for performance
+
+	// Per-pixel random rotation angle using interleaved gradient noise
+	float2 pixelPos = uv / texelSize;
+	float noiseAngle = frac( 52.9829189 * frac( dot( pixelPos, float2( 0.06711056, 0.00583715 ) ) ) ) * PI;
+	noiseAngle = noiseAngle + frameRandom * PI;
+
+	// HBAO - sample in 8 directions, 4 steps each
+	float ao = 0.0;
+	float numDirections = 8.0;
+	float numSteps = 4.0;
+	float stepSize = screenRadius / numSteps;
+
+	for ( float d = 0.0; d < numDirections; d = d + 1.0 ) {
+		float angle = ( d / numDirections ) * PI + noiseAngle;
+		float cosA = cos( angle );
+		float sinA = sin( angle );
+		float2 dir = float2( cosA, sinA ) * texelSize;
+
+		// Find max horizon angle in positive and negative directions
+		float horizonCosPos = bias;
+		float horizonCosNeg = bias;
+
+		for ( float s = 1.0; s <= numSteps; s = s + 1.0 ) {
+			float2 offset = dir * s * stepSize;
+
+			// Positive direction
+			float2 sampleUV = uv + offset;
+			sampleUV = clamp( sampleUV, 0.001, 0.999 );
+			float sDepth = GetLinearDepth( sampleUV );
+			float3 sPos = GetViewPos( sampleUV, sDepth );
+			float3 diff = sPos - viewPos;
+			float dist = length( diff );
+			if ( dist > 0.0001 ) {
+				float sinH = dot( diff, normal ) / dist;
+				float falloff = 1.0 - saturate( dist / radius );
+				falloff = falloff * falloff;
+				horizonCosPos = max( horizonCosPos, sinH * falloff );
+			}
+
+			// Negative direction
+			sampleUV = uv - offset;
+			sampleUV = clamp( sampleUV, 0.001, 0.999 );
+			sDepth = GetLinearDepth( sampleUV );
+			sPos = GetViewPos( sampleUV, sDepth );
+			diff = sPos - viewPos;
+			dist = length( diff );
+			if ( dist > 0.0001 ) {
+				float sinH = dot( diff, normal ) / dist;
+				float falloff = 1.0 - saturate( dist / radius );
+				falloff = falloff * falloff;
+				horizonCosNeg = max( horizonCosNeg, sinH * falloff );
+			}
+		}
+
+		ao = ao + horizonCosPos + horizonCosNeg;
+	}
+
+	ao = ao / ( 2.0 * numDirections );
+	ao = 1.0 - saturate( ao * intensity );
+
+	// Store AO in all channels for multiplicative blending, depth in alpha for bilateral blur
+	float depthKey = saturate( depth / maxDist );
+	result.color = float4( ao, ao, ao, depthKey );
+}

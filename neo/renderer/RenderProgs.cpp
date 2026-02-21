@@ -132,6 +132,11 @@ void idRenderProgManager::Init()
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_POINT_SKINNED, "interactionSM_point_skinned.vfp" },
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL, "interactionSM_parallel.vfp" },
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED, "interactionSM_parallel_skinned.vfp" },
+		// SSAO/SSR
+		{ BUILTIN_LINEARIZE_DEPTH, "linearizeDepth.vfp" },
+		{ BUILTIN_SSAO, "ssao.vfp" },
+		{ BUILTIN_SSAO_BLUR, "ssao_blur.vfp" },
+		{ BUILTIN_SSR, "ssr.vfp" },
 	};
 	int numBuiltins = sizeof( builtins ) / sizeof( builtins[0] );
 	vertexShaders.SetNum( numBuiltins );

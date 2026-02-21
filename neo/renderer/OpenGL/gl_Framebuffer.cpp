@@ -385,6 +385,14 @@ void idFramebufferManager::Init()
 			shadowMapFramebuffer[i][j]->SetDepthAttachment( globalImages->shadowImage[i] );
 		}
 	}
+
+	// SSAO/SSR
+	linearDepthFramebuffer = AllocFramebuffer( "_linearDepthFramebuffer" );
+	linearDepthFramebuffer->SetColorAttachment( 0, globalImages->linearDepthImage );
+	ssaoFramebuffer = AllocFramebuffer( "_ssaoFramebuffer" );
+	ssaoFramebuffer->SetColorAttachment( 0, globalImages->ssaoImage );
+	ssaoBlurFramebuffer = AllocFramebuffer( "_ssaoBlurFramebuffer" );
+	ssaoBlurFramebuffer->SetColorAttachment( 0, globalImages->ssaoBlurImage );
 	// these will be set by the first call to idFramebuffer::Bind
 	sysfbo = 0;
 	gotsysfbo = false;

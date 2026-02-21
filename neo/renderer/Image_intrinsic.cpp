@@ -688,6 +688,11 @@ void idImageManager::CreateIntrinsicImages()
 	glowFramebufferImage16[2] = ImageFromFunction( "_glowFramebufferHDR2", R_RGBA16FImageLinear );
 	glowFramebufferImage16[3] = ImageFromFunction( "_glowFramebufferHDR3", R_RGBA16FImageLinear );
 
+	// SSAO/SSR
+	linearDepthImage = ImageFromFunction( "_linearDepth", R_RGBA16FImageLinear );
+	ssaoImage = ImageFromFunction( "_ssao", R_RGBA8ImageLinear );
+	ssaoBlurImage = ImageFromFunction( "_ssaoBlur", R_RGBA8ImageLinear );
+
 	// save a copy of this for material comparison, because currentRenderImage may get
 	// reassigned during stereo rendering
 	originalCurrentRenderImage = currentRenderImage;

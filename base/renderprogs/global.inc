@@ -133,6 +133,16 @@ uniform float4 rpGlossMatrixT			:	register(c83);
 
 uniform float4 rpCubemapColorSpace		:	register(c84); // motorsep 05-18-2015
 
+// user render parms
+uniform float4 rpUser0					:	register(c128);
+uniform float4 rpUser1					:	register(c129);
+uniform float4 rpUser2					:	register(c130);
+uniform float4 rpUser3					:	register(c131);
+uniform float4 rpUser4					:	register(c132);
+uniform float4 rpUser5					:	register(c133);
+uniform float4 rpUser6					:	register(c134);
+uniform float4 rpUser7					:	register(c135);
+
 static float dot2( float2 a, float2 b ) { return dot( a, b ); }
 static float dot3( float3 a, float3 b ) { return dot( a, b ); }
 static float dot3( float3 a, float4 b ) { return dot( a, b.xyz ); }
