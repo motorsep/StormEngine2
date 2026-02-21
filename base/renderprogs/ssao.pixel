@@ -3,21 +3,22 @@
 
 Screen-Space Ambient Occlusion (HBAO-style)
 
-Reconstructs view-space position and normal from depth buffer only.
+Reconstructs view-space position and normal from pre-linearized depth.
 No G-buffer required - ideal for forward rendering pipelines.
 
 rpUser0: ( 1/screenWidth, 1/screenHeight, radius, bias )
 rpUser1: ( intensity, maxDistance, frameRandom, 0 )
+rpUser2: ( projMatrix[0][0], projMatrix[1][1], 0, 0 )
 
 Textures:
-  samp0 (s0): depth buffer (currentDepthImage)
+  samp0 (s0): linear depth texture (linearDepthImage)
 
 ===========================================================================
 */
 
 #include "global.inc"
 
-uniform sampler2D samp0 : register(s0); // depth buffer
+uniform sampler2D samp0 : register(s0); // linear depth texture
 
 struct PS_IN {
 	float2 texcoord0 : TEXCOORD0_centroid;
@@ -27,19 +28,17 @@ struct PS_OUT {
 	float4 color : COLOR;
 };
 
-// Reconstruct linear depth from window-space Z using the projection matrix
+// Read pre-linearized depth from the linear depth texture
 static float GetLinearDepth( float2 uv ) {
-	float windowZ = tex2D( samp0, uv ).x;
-	float ndcZ = windowZ * 2.0 - 1.0;
-	return -rpProjectionMatrixZ.w / ( -rpProjectionMatrixZ.z - ndcZ );
+	return tex2D( samp0, uv ).x;
 }
 
 // Reconstruct view-space position from UV and linear depth
 static float3 GetViewPos( float2 uv, float depth ) {
 	float2 ndc = uv * 2.0 - 1.0;
 	float3 pos;
-	pos.x = ndc.x * depth / rpProjectionMatrixX.x;
-	pos.y = ndc.y * depth / rpProjectionMatrixY.y;
+	pos.x = ndc.x * depth / rpUser2.x;
+	pos.y = ndc.y * depth / rpUser2.y;
 	pos.z = -depth;
 	return pos;
 }
@@ -90,7 +89,7 @@ void main( PS_IN fragment, out PS_OUT result ) {
 	float3 normal = ReconstructNormal( uv, viewPos );
 
 	// Compute screen-space radius from world-space radius
-	float screenRadius = ( radius / abs( viewPos.z ) ) * rpProjectionMatrixX.x * 0.5;
+	float screenRadius = ( radius / abs( viewPos.z ) ) * rpUser2.x * 0.5;
 	screenRadius = max( screenRadius, 3.0 ); // minimum 3 pixels
 	screenRadius = min( screenRadius, 128.0 ); // cap for performance
 

@@ -1,0 +1,47 @@
+/*
+===========================================================================
+
+Linearize depth pass
+
+Reads the hardware depth buffer and converts to linear view-space depth,
+stored in a float texture for consumption by SSAO and SSR.
+
+Uses the same linearization approach as the proven inkEffect shader.
+
+rpUser0: ( projMatrixZ_z, projMatrixW_z, 0, 0 )
+  projMatrixZ_z = projectionMatrix[2][2] (e.g. -0.999 for infinite far plane)
+  projMatrixW_z = projectionMatrix[2][3] (e.g. -2*zNear)
+
+Textures:
+  samp0 (s0): hardware depth buffer (currentDepthImage)
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0); // hardware depth buffer
+
+struct PS_IN {
+	float2 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2 uv = fragment.texcoord0;
+
+	float windowZ = tex2D( samp0, uv ).x;
+	float ndcZ = windowZ * 2.0 - 1.0;
+
+	// Linear depth from projection matrix components:
+	// depth = -d / (c + ndcZ)  where c = projMatrix[2][2], d = projMatrix[2][3]
+	float c = rpUser0.x; // projectionMatrix[2][2], typically -0.999
+	float d = rpUser0.y; // projectionMatrix[2][3], typically -2*zNear
+
+	float linearDepth = -d / ( c + ndcZ );
+
+	result.color = float4( linearDepth, linearDepth, linearDepth, 1.0 );
+}

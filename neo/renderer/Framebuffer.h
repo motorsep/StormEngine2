@@ -140,6 +140,7 @@ public:
 	idFramebuffer*		glowFramebuffer16[4];
 	idFramebuffer*		shadowMapFramebuffer[MAX_SHADOWMAP_RESOLUTIONS][6];
 	// SSAO/SSR
+	idFramebuffer*		linearDepthFramebuffer;
 	idFramebuffer*		ssaoFramebuffer;
 	idFramebuffer*		ssaoBlurFramebuffer;
 	

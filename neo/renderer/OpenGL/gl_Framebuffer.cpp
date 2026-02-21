@@ -387,6 +387,8 @@ void idFramebufferManager::Init()
 	}
 
 	// SSAO/SSR
+	linearDepthFramebuffer = AllocFramebuffer( "_linearDepthFramebuffer" );
+	linearDepthFramebuffer->SetColorAttachment( 0, globalImages->linearDepthImage );
 	ssaoFramebuffer = AllocFramebuffer( "_ssaoFramebuffer" );
 	ssaoFramebuffer->SetColorAttachment( 0, globalImages->ssaoImage );
 	ssaoBlurFramebuffer = AllocFramebuffer( "_ssaoBlurFramebuffer" );

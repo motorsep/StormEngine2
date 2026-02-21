@@ -389,6 +389,10 @@ public:
 	}
 
 	// SSAO/SSR
+	void	BindShader_LinearizeDepth()
+	{
+		BindShader_Builtin( BUILTIN_LINEARIZE_DEPTH );
+	}
 	void	BindShader_SSAO()
 	{
 		BindShader_Builtin( BUILTIN_SSAO );
@@ -489,6 +493,7 @@ protected:
 		BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED,
 		// RB end
 		// SSAO/SSR
+		BUILTIN_LINEARIZE_DEPTH,
 		BUILTIN_SSAO,
 		BUILTIN_SSAO_BLUR,
 		BUILTIN_SSR,

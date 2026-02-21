@@ -4336,6 +4336,68 @@ Renders AO from depth buffer, bilateral blurs it, then applies
 multiplicatively to the scene framebuffer.
 ==================
 */
+/*
+==================
+RB_LinearizeDepth
+
+Converts the hardware depth buffer to a linear depth texture (RGBA16F).
+This provides a high-precision linear depth for SSAO and SSR,
+independent of the hardware depth format.
+==================
+*/
+static void RB_LinearizeDepth()
+{
+	if( !r_useSSAO.GetBool() && !r_useSSR.GetBool() )
+	{
+		return;
+	}
+	if( !backEnd.viewDef->viewEntitys )
+	{
+		return;
+	}
+	if( backEnd.viewDef->isSubview )
+	{
+		return;
+	}
+
+	int screenWidth = renderSystem->GetWidth();
+	int screenHeight = renderSystem->GetHeight();
+
+	// Resize linear depth image if screen size changed
+	if( globalImages->linearDepthImage->GetUploadWidth() != screenWidth
+	 || globalImages->linearDepthImage->GetUploadHeight() != screenHeight )
+	{
+		globalImages->linearDepthImage->Resize( screenWidth, screenHeight );
+		globalFramebuffers->linearDepthFramebuffer->PurgeFramebuffer();
+	}
+
+	globalFramebuffers->linearDepthFramebuffer->Bind();
+	GL_Viewport( 0, 0, screenWidth, screenHeight );
+	GL_Scissor( 0, 0, screenWidth, screenHeight );
+
+	GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS );
+	GL_Cull( CT_TWO_SIDED );
+
+	renderProgManager.BindShader_LinearizeDepth();
+
+	// rpUser0: ( projMatrix[2][2], projMatrix[2][3], 0, 0 )
+	// These are the projection matrix components needed for depth linearization:
+	//   c = projMatrix[2][2] (typically -0.999 for infinite far plane)
+	//   d = projMatrix[2][3] (typically -2*zNear)
+	// linearDepth = -d / (c + ndcZ)
+	float linDepthParm0[4];
+	linDepthParm0[0] = backEnd.viewDef->projectionMatrix[2 * 4 + 2]; // c
+	linDepthParm0[1] = backEnd.viewDef->projectionMatrix[3 * 4 + 2]; // d
+	linDepthParm0[2] = 0.0f;
+	linDepthParm0[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )RENDERPARM_USER, linDepthParm0 );
+
+	GL_SelectTexture( 0 );
+	globalImages->currentDepthImage->Bind();
+
+	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
+}
+
 static void RB_SSAO()
 {
 	if( !r_useSSAO.GetBool() )
@@ -4363,11 +4425,6 @@ static void RB_SSAO()
 		globalFramebuffers->ssaoFramebuffer->PurgeFramebuffer();
 		globalFramebuffers->ssaoBlurFramebuffer->PurgeFramebuffer();
 	}
-
-	// Set projection matrix for view-space reconstruction in shaders
-	float projMatrixTranspose[16];
-	R_MatrixTranspose( backEnd.viewDef->projectionMatrix, projMatrixTranspose );
-	SetVertexParms( RENDERPARM_PROJMATRIX_X, projMatrixTranspose, 4 );
 
 	// ============================================================
 	// Pass 1: Compute SSAO into ssaoFramebuffer
@@ -4397,8 +4454,17 @@ static void RB_SSAO()
 	ssaoParm1[3] = 0.0f;
 	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 1 ), ssaoParm1 );
 
+	// rpUser2: ( projMatrix[0][0], projMatrix[1][1], 0, 0 )
+	// Projection matrix diagonal for view-space position reconstruction
+	float ssaoParm2[4];
+	ssaoParm2[0] = backEnd.viewDef->projectionMatrix[0 * 4 + 0]; // M[0][0]
+	ssaoParm2[1] = backEnd.viewDef->projectionMatrix[1 * 4 + 1]; // M[1][1]
+	ssaoParm2[2] = 0.0f;
+	ssaoParm2[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 2 ), ssaoParm2 );
+
 	GL_SelectTexture( 0 );
-	globalImages->currentDepthImage->Bind();
+	globalImages->linearDepthImage->Bind();
 
 	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
 
@@ -4504,11 +4570,6 @@ static void RB_SSR()
 	GL_SelectTexture( 0 );
 	globalImages->currentRenderImage->CopyFramebuffer( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
 
-	// Set projection matrix for view-space reconstruction
-	float projMatrixTranspose[16];
-	R_MatrixTranspose( backEnd.viewDef->projectionMatrix, projMatrixTranspose );
-	SetVertexParms( RENDERPARM_PROJMATRIX_X, projMatrixTranspose, 4 );
-
 	// ============================================================
 	// Compute SSR into ssaoBlurFramebuffer (reuse it)
 	// ============================================================
@@ -4537,10 +4598,19 @@ static void RB_SSR()
 	ssrParm1[3] = 0.0f;
 	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 1 ), ssrParm1 );
 
+	// rpUser2: ( projMatrix[0][0], projMatrix[1][1], 0, 0 )
+	// Projection matrix diagonal for view-space position reconstruction and screen projection
+	float ssrParm2[4];
+	ssrParm2[0] = backEnd.viewDef->projectionMatrix[0 * 4 + 0]; // M[0][0]
+	ssrParm2[1] = backEnd.viewDef->projectionMatrix[1 * 4 + 1]; // M[1][1]
+	ssrParm2[2] = 0.0f;
+	ssrParm2[3] = 0.0f;
+	SetFragmentParm( ( renderParm_t )( RENDERPARM_USER + 2 ), ssrParm2 );
+
 	GL_SelectTexture( 0 );
 	globalImages->currentRenderImage->Bind();
 	GL_SelectTexture( 1 );
-	globalImages->currentDepthImage->Bind();
+	globalImages->linearDepthImage->Bind();
 
 	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
 
@@ -4640,6 +4710,7 @@ void RB_DrawView( const void* data, const int stereoEye )
 	RB_DrawViewInternal( cmd->viewDef, stereoEye );
 
 	// SSAO/SSR post-processing passes
+	RB_LinearizeDepth();
 	RB_SSAO();
 	RB_SSR();
 
