@@ -244,6 +244,18 @@ idCVar r_shadowMapStaticShadowsDistance( "r_shadowMapStaticShadowsDistance", "10
 // RB end
 
 
+// SSAO
+idCVar r_useSSAO( "r_useSSAO", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "use screen-space ambient occlusion" );
+idCVar r_ssaoRadius( "r_ssaoRadius", "1.0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "SSAO sample radius in world units", 0.1f, 10.0f );
+idCVar r_ssaoIntensity( "r_ssaoIntensity", "1.5", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "SSAO darkening intensity", 0.1f, 5.0f );
+idCVar r_ssaoBias( "r_ssaoBias", "0.05", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "SSAO depth bias to reduce self-occlusion", 0.0f, 0.5f );
+
+// SSR
+idCVar r_useSSR( "r_useSSR", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "use screen-space reflections" );
+idCVar r_ssrMaxDistance( "r_ssrMaxDistance", "50.0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "SSR maximum ray distance in world units", 1.0f, 500.0f );
+idCVar r_ssrStride( "r_ssrStride", "4.0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "SSR ray march stride in pixels", 1.0f, 32.0f );
+idCVar r_ssrIntensity( "r_ssrIntensity", "0.5", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_FLOAT, "SSR reflection intensity", 0.0f, 1.0f );
+
 idCVar r_screenshot_png( "screenshot_png", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL, "Save Screenshots as PNG files." );
 
 idCVar r_screenshot_png_quality( "screenshot_png_quality", "3", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER, "Modifies the compression level of the png File to be written.\n\t0 = Worst Quality\n\t3 = Default Quality Setting\n\t8 = Best Quality",

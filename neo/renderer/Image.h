@@ -389,6 +389,9 @@ public:
 	// the first is full resolution, the later ones are progressively smaller
 	idImage*			glowFramebufferImage8[4];
 	idImage*			glowFramebufferImage16[4];
+	// SSAO/SSR
+	idImage*			ssaoImage;
+	idImage*			ssaoBlurImage;
 	
 	//--------------------------------------------------------
 	

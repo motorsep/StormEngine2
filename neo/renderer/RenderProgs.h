@@ -388,6 +388,20 @@ public:
 		BindShader_Builtin( BUILTIN_HDRGLOWBLURDIRECTIONAL );
 	}
 
+	// SSAO/SSR
+	void	BindShader_SSAO()
+	{
+		BindShader_Builtin( BUILTIN_SSAO );
+	}
+	void	BindShader_SSAOBlur()
+	{
+		BindShader_Builtin( BUILTIN_SSAO_BLUR );
+	}
+	void	BindShader_SSR()
+	{
+		BindShader_Builtin( BUILTIN_SSR );
+	}
+
 	// the joints buffer should only be bound for vertex programs that use joints
 	bool	ShaderUsesJoints() const
 	{
@@ -473,7 +487,12 @@ protected:
 		BUILTIN_INTERACTION_SHADOW_MAPPING_POINT_SKINNED,
 		BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL,
 		BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED,
-		// RB end		
+		// RB end
+		// SSAO/SSR
+		BUILTIN_SSAO,
+		BUILTIN_SSAO_BLUR,
+		BUILTIN_SSR,
+
 		MAX_BUILTINS
 	};
 	int builtinShaders[MAX_BUILTINS];

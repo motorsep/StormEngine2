@@ -1,0 +1,207 @@
+/*
+===========================================================================
+
+Screen-Space Reflections
+
+Linear ray march in screen space with binary search refinement.
+Uses Fresnel-based reflection strength since no per-pixel material
+data is available in a forward renderer.
+
+rpUser0: ( 1/screenWidth, 1/screenHeight, maxDistance, stride )
+rpUser1: ( intensity, 0, frameRandom, 0 )
+
+Textures:
+  samp0 (s0): scene color buffer
+  samp1 (s1): depth buffer (currentDepthImage)
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0); // scene color
+uniform sampler2D samp1 : register(s1); // depth buffer
+
+struct PS_IN {
+	float2 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+// Reconstruct linear depth from window-space Z
+static float GetLinearDepth( float2 uv ) {
+	float windowZ = tex2D( samp1, uv ).x;
+	float ndcZ = windowZ * 2.0 - 1.0;
+	return -rpProjectionMatrixZ.w / ( -rpProjectionMatrixZ.z - ndcZ );
+}
+
+// Reconstruct view-space position from UV and linear depth
+static float3 GetViewPos( float2 uv, float depth ) {
+	float2 ndc = uv * 2.0 - 1.0;
+	float3 pos;
+	pos.x = ndc.x * depth / rpProjectionMatrixX.x;
+	pos.y = ndc.y * depth / rpProjectionMatrixY.y;
+	pos.z = -depth;
+	return pos;
+}
+
+// Reconstruct view-space normal from depth derivatives
+static float3 ReconstructNormal( float2 uv, float3 viewPos ) {
+	float2 ts = rpUser0.xy;
+
+	float3 posL = GetViewPos( uv - float2( ts.x, 0.0 ), GetLinearDepth( uv - float2( ts.x, 0.0 ) ) );
+	float3 posR = GetViewPos( uv + float2( ts.x, 0.0 ), GetLinearDepth( uv + float2( ts.x, 0.0 ) ) );
+	float3 posD = GetViewPos( uv - float2( 0.0, ts.y ), GetLinearDepth( uv - float2( 0.0, ts.y ) ) );
+	float3 posU = GetViewPos( uv + float2( 0.0, ts.y ), GetLinearDepth( uv + float2( 0.0, ts.y ) ) );
+
+	float3 dx = ( abs( posR.z - viewPos.z ) < abs( posL.z - viewPos.z ) )
+		? ( posR - viewPos ) : ( viewPos - posL );
+	float3 dy = ( abs( posU.z - viewPos.z ) < abs( posD.z - viewPos.z ) )
+		? ( posU - viewPos ) : ( viewPos - posD );
+
+	return normalize( cross( dy, dx ) );
+}
+
+// Project a view-space point to screen UV
+static float2 ProjectToScreen( float3 viewPos ) {
+	float2 ndc;
+	ndc.x = viewPos.x * rpProjectionMatrixX.x / ( -viewPos.z );
+	ndc.y = viewPos.y * rpProjectionMatrixY.y / ( -viewPos.z );
+	return ndc * 0.5 + 0.5;
+}
+
+// Schlick Fresnel approximation
+static float FresnelSchlick( float cosTheta ) {
+	float f0 = 0.04; // non-metallic base reflectance
+	return f0 + ( 1.0 - f0 ) * pow( saturate( 1.0 - cosTheta ), 5.0 );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2 uv = fragment.texcoord0;
+	float2 texelSize = rpUser0.xy;
+	float maxDist = rpUser0.z;
+	float stride = rpUser0.w;
+	float ssrIntensity = rpUser1.x;
+
+	// Reconstruct view-space data
+	float depth = GetLinearDepth( uv );
+
+	// Early out for sky
+	if ( depth > 500.0 ) {
+		result.color = float4( 0.0, 0.0, 0.0, 0.0 );
+		return;
+	}
+
+	float3 viewPos = GetViewPos( uv, depth );
+	float3 normal = ReconstructNormal( uv, viewPos );
+
+	// Compute reflection direction in view space
+	float3 viewDir = normalize( viewPos );
+	float3 reflectDir = reflect( viewDir, normal );
+
+	// Fresnel - stronger reflections at grazing angles
+	float NdotV = max( dot( normal, -viewDir ), 0.0 );
+	float fresnel = FresnelSchlick( NdotV );
+
+	// Skip pixels with very weak reflections
+	if ( fresnel < 0.01 ) {
+		result.color = float4( 0.0, 0.0, 0.0, 0.0 );
+		return;
+	}
+
+	// Ray march in screen space
+	float3 rayStart = viewPos;
+	float3 rayEnd = viewPos + reflectDir * maxDist;
+
+	// Project start and end to screen
+	float2 screenStart = ProjectToScreen( rayStart );
+	float2 screenEnd = ProjectToScreen( rayEnd );
+
+	// If the ray goes behind the camera, clip it
+	if ( rayEnd.z > 0.0 ) {
+		// Find the t where z crosses 0, use a point just before that
+		float t = -rayStart.z / ( rayEnd.z - rayStart.z );
+		t = max( t - 0.01, 0.0 );
+		rayEnd = rayStart + ( rayEnd - rayStart ) * t;
+		screenEnd = ProjectToScreen( rayEnd );
+	}
+
+	float2 screenDelta = screenEnd - screenStart;
+	float screenDist = length( screenDelta / texelSize ); // distance in pixels
+
+	// Number of steps based on screen distance and stride
+	float maxSteps = 32.0;
+	float numSteps = min( screenDist / stride, maxSteps );
+
+	if ( numSteps < 1.0 ) {
+		result.color = float4( 0.0, 0.0, 0.0, 0.0 );
+		return;
+	}
+
+	float stepSize = 1.0 / numSteps;
+	float2 stepDelta = screenDelta * stepSize;
+
+	// Linear ray march
+	float3 hitColor = float3( 0.0, 0.0, 0.0 );
+	float hitConfidence = 0.0;
+	float thickness = 0.5; // depth thickness for hit detection
+
+	float2 marchUV = screenStart + stepDelta; // start one step ahead
+	for ( float i = 1.0; i <= maxSteps; i = i + 1.0 ) {
+		if ( i > numSteps ) {
+			break;
+		}
+
+		// Check bounds
+		if ( marchUV.x < 0.0 || marchUV.x > 1.0 || marchUV.y < 0.0 || marchUV.y > 1.0 ) {
+			break;
+		}
+
+		float marchDepth = GetLinearDepth( marchUV );
+		float t = i * stepSize;
+		float3 expectedPos = rayStart + ( rayEnd - rayStart ) * t;
+		float expectedDepth = -expectedPos.z;
+
+		float depthDiff = marchDepth - expectedDepth;
+
+		// Hit: scene depth is between the ray and the ray + thickness
+		if ( depthDiff > 0.0 && depthDiff < thickness ) {
+			// Binary search refinement for precise hit location
+			float2 refinedUV = marchUV;
+			float2 refineStep = stepDelta * 0.5;
+			for ( float r = 0.0; r < 5.0; r = r + 1.0 ) {
+				float refDepth = GetLinearDepth( refinedUV );
+				float refT = ( t - stepSize * 0.5 ) + stepSize * 0.5;
+				float3 refExpected = rayStart + ( rayEnd - rayStart ) * refT;
+				float refExpDepth = -refExpected.z;
+				float refDiff = refDepth - refExpDepth;
+
+				if ( refDiff > 0.0 ) {
+					refinedUV = refinedUV - refineStep;
+				} else {
+					refinedUV = refinedUV + refineStep;
+				}
+				refineStep = refineStep * 0.5;
+			}
+
+			hitColor = tex2D( samp0, refinedUV ).rgb;
+
+			// Edge fade - reduce confidence near screen borders
+			float2 edgeFade = saturate( refinedUV * 10.0 ) * saturate( ( 1.0 - refinedUV ) * 10.0 );
+			float edgeFactor = edgeFade.x * edgeFade.y;
+
+			// Distance fade
+			float distFade = 1.0 - saturate( i / numSteps );
+
+			hitConfidence = edgeFactor * distFade;
+			break;
+		}
+
+		marchUV = marchUV + stepDelta;
+	}
+
+	float alpha = hitConfidence * fresnel * ssrIntensity;
+	result.color = float4( hitColor * alpha, alpha );
+}

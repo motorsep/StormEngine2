@@ -139,6 +139,9 @@ public:
 	idFramebuffer*		glowFramebuffer8[4];
 	idFramebuffer*		glowFramebuffer16[4];
 	idFramebuffer*		shadowMapFramebuffer[MAX_SHADOWMAP_RESOLUTIONS][6];
+	// SSAO/SSR
+	idFramebuffer*		ssaoFramebuffer;
+	idFramebuffer*		ssaoBlurFramebuffer;
 	
 	idFramebuffer*		AllocFramebuffer( const char* name, int layer = -1 );
 	idFramebuffer*		AllocStandaloneFramebuffer( const char* name );
