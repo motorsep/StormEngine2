@@ -1,0 +1,32 @@
+/*
+===========================================================================
+
+Debug visualization of the G-Buffer normal texture.
+Draws the view-space normal buffer as a fullscreen color overlay.
+Used by r_showGbuffer cvar.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0); // G-Buffer normals
+
+struct PS_IN {
+	float4 position  : VPOS;
+	float4 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2 tCoords = fragment.texcoord0.xy;
+
+	// Read the encoded view-space normal
+	float4 normalSample = tex2D( samp0, tCoords );
+
+	// Display as color: the [0,1] encoded normal maps directly to visible RGB
+	result.color = float4( normalSample.xyz, 1.0 );
+}

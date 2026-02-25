@@ -389,6 +389,13 @@ public:
 	// the first is full resolution, the later ones are progressively smaller
 	idImage*			glowFramebufferImage8[4];
 	idImage*			glowFramebufferImage16[4];
+	// G-Buffer for SSAO/SSR
+	idImage*			gbufferNormalImage;
+	// SSAO
+	idImage*			ssaoImage;          // half-res AO result (R8)
+	idImage*			ssaoBlurTempImage;  // half-res blur temp (R8)
+
+
 	
 	//--------------------------------------------------------
 	

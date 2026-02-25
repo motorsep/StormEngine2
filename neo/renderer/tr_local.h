@@ -1028,6 +1028,17 @@ extern idCVar r_showDynamic;				// report stats on dynamic surface generation
 extern idCVar r_showIntensity;				// draw the screen colors based on intensity, red = 0, green = 128, blue = 255
 extern idCVar r_showTrace;					// show the intersection of an eye trace with the world
 extern idCVar r_showDepth;					// display the contents of the depth buffer and the depth range
+extern idCVar r_showGbuffer;				// show G-Buffer
+extern idCVar r_useGbuffer;					// Use G-Buffer
+// SSAO
+extern idCVar r_ssao;
+extern idCVar r_ssaoRadius;
+extern idCVar r_ssaoIntensity;
+extern idCVar r_ssaoBias;
+//extern idCVar r_ssaoMaxDistance;
+extern idCVar r_ssaoProjScale;
+extern idCVar r_showSSAO;
+
 extern idCVar r_showTris;					// enables wireframe rendering of the world
 extern idCVar r_showSurfaceInfo;			// show surface material name under crosshair
 extern idCVar r_showNormals;				// draws wireframe normals
@@ -1194,7 +1205,6 @@ void		GLimp_SetGamma( unsigned short red[256],
 
 void		GLimp_EnableLogging( bool enable );
 
-
 /*
 ============================================================
 
@@ -1360,7 +1370,6 @@ void				R_RemoveUnusedVerts( srfTriangles_t* tri );
 void				R_RangeCheckIndexes( const srfTriangles_t* tri );
 void				R_CreateVertexNormals( srfTriangles_t* tri );		// also called by dmap
 void				R_DeriveFacePlanes(srfTriangles_t* tri);		// also called by renderbump
-
 void				R_CleanupTriangles( srfTriangles_t* tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents );
 void				R_ReverseTriangles( srfTriangles_t* tri );
 
