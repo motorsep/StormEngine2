@@ -1,0 +1,36 @@
+/*
+===========================================================================
+G-Buffer vertex shader - outputs VIEW-SPACE normals.
+Uses rpModelViewMatrixX/Y/Z to rotate normals from local to view space.
+This matches the RBDoom3BFG convention where G-Buffer stores view-space data.
+===========================================================================
+*/
+
+#include "global.inc"
+
+struct VS_IN {
+	float4 position : POSITION;
+	float4 normal   : NORMAL;
+};
+
+struct VS_OUT {
+	float4 position   : POSITION;
+	float3 texcoord0  : TEXCOORD0;
+};
+
+void main( VS_IN vertex, out VS_OUT result ) {
+	result.position.x = dot4( vertex.position, rpMVPmatrixX );
+	result.position.y = dot4( vertex.position, rpMVPmatrixY );
+	result.position.z = dot4( vertex.position, rpMVPmatrixZ );
+	result.position.w = dot4( vertex.position, rpMVPmatrixW );
+
+	float3 localNormal = vertex.normal.xyz * 2.0 - 1.0;
+
+	// Rotate normal to VIEW space using modelViewMatrix
+	float3 viewN;
+	viewN.x = dot3( localNormal, rpModelViewMatrixX );
+	viewN.y = dot3( localNormal, rpModelViewMatrixY );
+	viewN.z = dot3( localNormal, rpModelViewMatrixZ );
+
+	result.texcoord0 = viewN;
+}

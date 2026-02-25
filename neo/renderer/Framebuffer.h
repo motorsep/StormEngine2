@@ -140,6 +140,13 @@ public:
 	idFramebuffer*		glowFramebuffer16[4];
 	idFramebuffer*		shadowMapFramebuffer[MAX_SHADOWMAP_RESOLUTIONS][6];
 	
+	// G-Buffer framebuffer for depth pre-pass normal output
+	idFramebuffer*		gbufferFramebuffer;
+	
+	// SSAO framebuffers
+	idFramebuffer*		ssaoFramebuffer;
+	idFramebuffer*		ssaoBlurTempFramebuffer;
+
 	idFramebuffer*		AllocFramebuffer( const char* name, int layer = -1 );
 	idFramebuffer*		AllocStandaloneFramebuffer( const char* name );
 

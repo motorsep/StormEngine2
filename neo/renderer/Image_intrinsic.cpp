@@ -176,6 +176,14 @@ static void R_DepthImageNearest( idImage* image )
 	image->GenerateImage( ( byte* )data, DEFAULT_SIZE, DEFAULT_SIZE, TF_NEAREST, TR_CLAMP, TD_DEPTH );
 }
 
+// SSAO
+static void R_R8ImageLinear(idImage* image)
+{
+    byte data[DEFAULT_SIZE][DEFAULT_SIZE][4];
+    memset(data, 255, sizeof(data));
+    image->GenerateImage((byte*)data, DEFAULT_SIZE, DEFAULT_SIZE, TF_LINEAR, TR_CLAMP, TD_LOOKUP_TABLE_MONO);
+}
+
 // foresthale 2014-02-20: modified version of R_RGBA8Image that uses TF_LINEAR for view renders
 static void R_RGBA8ImageLinear( idImage* image )
 {
@@ -687,6 +695,11 @@ void idImageManager::CreateIntrinsicImages()
 	glowFramebufferImage16[1] = ImageFromFunction( "_glowFramebufferHDR1", R_RGBA16FImageLinear );
 	glowFramebufferImage16[2] = ImageFromFunction( "_glowFramebufferHDR2", R_RGBA16FImageLinear );
 	glowFramebufferImage16[3] = ImageFromFunction( "_glowFramebufferHDR3", R_RGBA16FImageLinear );
+	// G-Buffer normal image for SSAO/SSR
+	gbufferNormalImage = ImageFromFunction("_gbufferNormals", R_RGBA8ImageLinear);
+	// SSAO images at half resolution
+	ssaoImage = ImageFromFunction("_ssaoBuffer", R_RGBA8ImageLinear);
+	ssaoBlurTempImage = ImageFromFunction("_ssaoBlurTemp", R_RGBA8ImageLinear);
 
 	// save a copy of this for material comparison, because currentRenderImage may get
 	// reassigned during stereo rendering
