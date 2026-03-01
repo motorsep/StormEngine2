@@ -157,6 +157,8 @@ idAASSettings::idAASSettings()
 	numBoundingBoxes = 1;
 	boundingBoxes[0] = idBounds( idVec3( -16, -16, 0 ), idVec3( 16, 16, 72 ) );
 	usePatches = false;
+	useStaticMeshes = false;
+	meshSlopeCos = -1.0f;		// disabled by default, will use minFloorCos if not set
 	writeBrushMap = false;
 	playerFlood = false;
 	noOptimize = false;
@@ -311,6 +313,21 @@ bool idAASSettings::FromParser( idLexer& src )
 		else if( token == "usePatches" )
 		{
 			if( !ParseBool( src, usePatches ) )
+			{
+				return false;
+			}
+		}
+		// AAS for meshes
+		else if (token == "useStaticMeshes") 
+		{
+			if (!ParseBool(src, useStaticMeshes))
+			{
+				return false;
+			}
+		}
+		else if (token == "meshSlopeCos")
+		{
+			if (!ParseFloat(src, meshSlopeCos))
 			{
 				return false;
 			}
@@ -494,6 +511,12 @@ bool idAASSettings::FromDict( const char* name, const idDict* dict )
 		common->Error( "Missing 'usePatches' in entityDef '%s'", name );
 	}
 	
+	// useStaticMeshes is optional — don't error if missing from legacy .def files
+	dict->GetBool("useStaticMeshes", "0", useStaticMeshes);
+
+	// meshSlopeCos is optional — if not set, defaults to -1 (will use minFloorCos)
+	dict->GetFloat("meshSlopeCos", "-1", meshSlopeCos);
+
 	if( !dict->GetBool( "writeBrushMap", "0", writeBrushMap ) )
 	{
 		common->Error( "Missing 'writeBrushMap' in entityDef '%s'", name );
@@ -594,6 +617,8 @@ bool idAASSettings::WriteToFile( idFile* fp ) const
 	}
 	fp->WriteFloatString( "\t}\n" );
 	fp->WriteFloatString( "\tusePatches = %d\n", usePatches );
+	fp->WriteFloatString("\tuseStaticMeshes = %d\n", useStaticMeshes);
+	fp->WriteFloatString("\tmeshSlopeCos = %f\n", meshSlopeCos);
 	fp->WriteFloatString( "\twriteBrushMap = %d\n", writeBrushMap );
 	fp->WriteFloatString( "\tplayerFlood = %d\n", playerFlood );
 	fp->WriteFloatString( "\tallowSwimReachabilities = %d\n", allowSwimReachabilities );

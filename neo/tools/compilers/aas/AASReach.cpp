@@ -34,6 +34,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "AASFile.h"
 #include "AASReach.h"
 
+#include "../../framework/Common_local.h"
+
 #define INSIDEUNITS							2.0f
 #define INSIDEUNITS_WALKEND					0.5f
 #define INSIDEUNITS_WALKSTART				0.1f
@@ -928,6 +930,9 @@ bool idAASReach::Build( const idDmapMapFile *mapFile, idAASFileLocal *file ) {
 		percent = 100 * i / file->areas.Num();
 		if ( percent > lastPercent ) {
 			common->Printf( "\r%6d%%", percent );
+			// update visual progress bar (reachability spans 0.82 to 0.95)
+			float reachProgress = 0.82f + 0.13f * ((float)percent / 100.0f);
+			commonLocal.LoadPacifierBinarizeProgress(reachProgress);
 			lastPercent = percent;
 		}
 	}

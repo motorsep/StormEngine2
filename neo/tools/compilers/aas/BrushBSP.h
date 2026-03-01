@@ -88,6 +88,10 @@ private:
 //
 //===============================================================
 
+// motorsep 02-01-2023; AAS fix from TDM
+// stgatilov #5212: this node was merged and deleted; parent points to the node it merged into
+// used in idAASBuild::MergeLeafNodes for reliable substitution of references
+#define NODE_ZOMBIE			BIT(29)
 #define NODE_VISITED		BIT(30)
 #define NODE_DONE			BIT(31)
 
@@ -165,7 +169,9 @@ public:
 							// try to merge portals
 	void					MergePortals( int skipContents );
 							// try to merge the two leaf nodes at either side of the portal
-	bool					TryMergeLeafNodes( idBrushBSPPortal *portal, int side );
+	//bool					TryMergeLeafNodes( idBrushBSPPortal *portal, int side );
+	// motorsep 02-01-2023; AAS fix from TMD
+	bool					TryMergeLeafNodes(idBrushBSPPortal* portal, int side, idList<idBrushBSPNode*>& zombieNodes);
 	void					PruneMergedTree_r( idBrushBSPNode *node );
 							// melt portal windings
 	void					MeltPortals( int skipContents );
@@ -177,6 +183,7 @@ public:
 	idBrushBSPNode *		GetRootNode( void ) const { return root; }
 
 	const int BSP_GRID_SIZE;
+	//const int8 BSP_GRID_SIZE; // motorsep 02-01-2023
 private:
 	idBrushBSPNode *		root;
 	idBrushBSPNode *		outside;

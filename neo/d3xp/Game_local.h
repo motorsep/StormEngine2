@@ -468,6 +468,8 @@ public:
 	void					RemoveAASObstacle( const aasHandle_t handle );
 	void					RemoveAllAASObstacles();
 	
+	void					ReloadAAS(); // reload AAS file after dmap recompiles existing map with existing AAS file
+
 	bool					CheatsOk( bool requirePlayer = true );
 	gameState_t				GameState() const;
 

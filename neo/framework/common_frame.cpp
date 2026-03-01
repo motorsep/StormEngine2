@@ -257,13 +257,24 @@ void idCommonLocal::Draw()
 			loadPacifierBinarizeTimeLeft = -1.0f;
 
 		// prepare our strings
+				
 		const char *text;
+		/*
 		if (loadPacifierBinarizeTimeLeft >= 99.5f)
 			text = va("Binarizing %3.0f%% ETA %2.0f minutes", loadPacifierBinarizeProgress * 100.0f, loadPacifierBinarizeTimeLeft / 60.0f);
 		else if (loadPacifierBinarizeTimeLeft)
 			text = va("Binarizing %3.0f%% ETA %2.0f seconds", loadPacifierBinarizeProgress * 100.0f, loadPacifierBinarizeTimeLeft);
 		else
 			text = va("Binarizing %3.0f%%", loadPacifierBinarizeProgress * 100.0f);
+		*/
+		
+		const char* pacifierLabel = (com_editors & EDITOR_DMAP) ? "Compiling" : "Binarizing";
+		if (loadPacifierBinarizeTimeLeft >= 99.5f)
+			text = va("%s %3.0f%% ETA %2.0f minutes", pacifierLabel, loadPacifierBinarizeProgress * 100.0f, loadPacifierBinarizeTimeLeft / 60.0f);
+		else if (loadPacifierBinarizeTimeLeft)
+			text = va("%s %3.0f%% ETA %2.0f seconds", pacifierLabel, loadPacifierBinarizeProgress * 100.0f, loadPacifierBinarizeTimeLeft);
+		else
+			text = va("%s %3.0f%%", pacifierLabel, loadPacifierBinarizeProgress * 100.0f);
 
 		// draw our basic overlay
 		renderSystem->SetColor( idVec4( 0.0f, 0.0f, 0.5f, 1.0f ) );
