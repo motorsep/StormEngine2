@@ -123,6 +123,7 @@ public:
 	virtual void				ShowWalkPath( const idVec3& origin, int goalAreaNum, const idVec3& goalOrigin ) const;
 	virtual void				ShowFlyPath( const idVec3& origin, int goalAreaNum, const idVec3& goalOrigin ) const;
 	virtual bool				FindNearestGoal( aasGoal_t& goal, int areaNum, const idVec3 origin, const idVec3& target, int travelFlags, aasObstacle_t* obstacles, int numObstacles, idAASCallback& callback ) const;
+	virtual unsigned int		GetCRC() const { return file ? file->GetCRC() : 0; }
 	
 private:
 	idAASFile* 					file;

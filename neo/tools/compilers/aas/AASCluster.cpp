@@ -95,65 +95,63 @@ bool idAASCluster::UpdatePortal( int areaNum, int clusterNum ) {
 idAASCluster::FloodClusterAreas_r
 ================
 */
-bool idAASCluster::FloodClusterAreas_r( int areaNum, int clusterNum ) {
-	aasArea_t *area;
-	aasFace_t *face;
-	int faceNum, i;
-	idReachability *reach;
+bool idAASCluster::FloodClusterAreas_r(int areaNum, int clusterNum) {
+	idList<int> stack;
+	stack.SetGranularity(4096);
+	stack.Append(areaNum);
 
-	area = &file->areas[areaNum];
+	while (stack.Num() > 0) {
+		int currentArea = stack[stack.Num() - 1];
+		stack.SetNum(stack.Num() - 1);
 
-	// if the area is already part of a cluster
-	if ( area->cluster > 0 ) {
-		if ( area->cluster == clusterNum ) {
-			return true;
+		aasArea_t* area = &file->areas[currentArea];
+
+		// if the area is already part of a cluster
+		if (area->cluster > 0) {
+			if (area->cluster == clusterNum) {
+				continue;
+			}
+			common->Error("cluster %d touched cluster %d at area %d\r\n", clusterNum, file->areas[currentArea].cluster, currentArea);
+			return false;
 		}
-		// there's a reachability going from one cluster to another only in one direction
-		common->Error( "cluster %d touched cluster %d at area %d\r\n", clusterNum, file->areas[areaNum].cluster, areaNum );
-		return false;
-	}
 
-	// if this area is a cluster portal
-	if ( area->contents & AREACONTENTS_CLUSTERPORTAL ) {
-		return UpdatePortal( areaNum, clusterNum );
-	}
+		// if this area is a cluster portal
+		if (area->contents & AREACONTENTS_CLUSTERPORTAL) {
+			if (!UpdatePortal(currentArea, clusterNum)) {
+				return false;
+			}
+			continue;
+		}
 
-	// set the area cluster number
-	area->cluster = clusterNum;
+		// set the area cluster number
+		area->cluster = clusterNum;
 
-	if ( !noFaceFlood ) {
-		// use area faces to flood into adjacent areas
-		for ( i = 0; i < area->numFaces; i++ ) {
-			faceNum = abs(file->faceIndex[area->firstFace + i]);
-			face = &file->faces[faceNum];
-			if ( face->areas[0] == areaNum ) {
-				if ( face->areas[1] ) {
-					if ( !FloodClusterAreas_r( face->areas[1], clusterNum ) ) {
-						return false;
+		if (!noFaceFlood) {
+			// use area faces to flood into adjacent areas
+			for (int i = 0; i < area->numFaces; i++) {
+				int faceNum = abs(file->faceIndex[area->firstFace + i]);
+				aasFace_t* face = &file->faces[faceNum];
+				if (face->areas[0] == currentArea) {
+					if (face->areas[1]) {
+						stack.Append(face->areas[1]);
+					}
+				}
+				else {
+					if (face->areas[0]) {
+						stack.Append(face->areas[0]);
 					}
 				}
 			}
-			else {
-				if ( face->areas[0] ) {
-					if ( !FloodClusterAreas_r( face->areas[0], clusterNum ) ) {
-						return false;
-					}
-				}
-			}
 		}
-	}
 
-	// use the reachabilities to flood into other areas
-	for ( reach = file->areas[areaNum].reach; reach; reach = reach->next ) {
-		if ( !FloodClusterAreas_r( reach->toAreaNum, clusterNum) ) {
-			return false;
+		// use the reachabilities to flood into other areas
+		for (idReachability* reach = file->areas[currentArea].reach; reach; reach = reach->next) {
+			stack.Append(reach->toAreaNum);
 		}
-	}
 
-	// use the reversed reachabilities to flood into other areas
-	for ( reach = file->areas[areaNum].rev_reach; reach; reach = reach->rev_next ) {
-		if ( !FloodClusterAreas_r( reach->fromAreaNum, clusterNum) ) {
-			return false;
+		// use the reversed reachabilities to flood into other areas
+		for (idReachability* reach = file->areas[currentArea].rev_reach; reach; reach = reach->rev_next) {
+			stack.Append(reach->fromAreaNum);
 		}
 	}
 

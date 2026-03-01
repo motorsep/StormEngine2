@@ -155,7 +155,8 @@ void DmapHelp( void ) {
 	"noCurves          = don't process curves\n"
 	"noCM              = don't create collision map\n"
 	"noAAS             = don't create AAS files\n"
-	
+	"useStaticMeshes   = include static mesh models in AAS compilation\n"
+	"meshSlopeFilter N = skip mesh triangles steeper than N degrees (AAS)\n"
 	);
 }
 
@@ -290,6 +291,13 @@ void Dmap( const idCmdArgs &args ) {
 		} else if ( !idStr::Icmp( s, "noAAS" ) ) {
 			noAAS = true;
 			common->Printf( "noAAS = true\n" );
+		} else if (!idStr::Icmp(s, "useStaticMeshes")) {
+			// passed through to RunAAS_f via args
+			common->Printf("useStaticMeshes = true (passed to AAS)\n");
+		} else if (!idStr::Icmp(s, "meshSlopeFilter")) {
+			// passed through to RunAAS_f via args, skip the next arg (the angle)
+			i++;
+			common->Printf("meshSlopeFilter (passed to AAS)\n");
 		} else if ( !idStr::Icmp( s, "editorOutput" ) ) {
 #ifdef _WIN32
 			//com_outputMsg = true;

@@ -92,6 +92,7 @@ private:
 	int						numLedgeSubdivisions;
 	idList<idLedge>			ledgeList;
 	idBrushMap *			ledgeMap;
+	idList<idBrushBSPNode*>	zombieNodes;	// motorsep 02-01-2023; AAS fix from TDM; stgatilov #5212: used during leaf merging
 
 private:	// map loading
 	void					ParseProcNodes( idLexer *src );
@@ -102,6 +103,7 @@ private:	// map loading
 	int						ContentsForAAS( int contents );
 	idBrushList				AddBrushesForMapBrush( const idMapBrush *mapBrush, const idVec3 &origin, const idMat3 &axis, int entityNum, int primitiveNum, idBrushList brushList );
 	idBrushList				AddBrushesForMapPatch( const idDmapMapPatch *mapPatch, const idVec3 &origin, const idMat3 &axis, int entityNum, int primitiveNum, idBrushList brushList );
+	idBrushList				AddBrushesForStaticMesh(const idDmapMapEntity* mapEnt, int entityNum, idBrushList brushList); // AAS for meshes
 	idBrushList				AddBrushesForMapEntity( const idDmapMapEntity *mapEnt, int entityNum, idBrushList brushList );
 	idBrushList				AddBrushesForMapFile( const idDmapMapFile * mapFile, idBrushList brushList );
 	bool					CheckForEntities( const idDmapMapFile *mapFile, idStrList &entityClassNames ) const;

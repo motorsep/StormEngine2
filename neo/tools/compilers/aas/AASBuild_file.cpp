@@ -209,19 +209,15 @@ bool idAASBuild::GetEdge( const idVec3 &v1, const idVec3 &v2, int *edgeNum, int 
 	return false;
 }
 
-/*
-================
-idAASBuild::GetFaceForPortal
-================
-*/
-bool idAASBuild::GetFaceForPortal( idBrushBSPPortal *portal, int side, int *faceNum ) {
+bool idAASBuild::GetFaceForPortal(idBrushBSPPortal* portal, int side, int* faceNum) {
 	int i, j, v1num;
-	int numFaceEdges, faceEdges[MAX_POINTS_ON_WINDING];
-	idWinding *w;
+	int numFaceEdges;
+	idList<int> faceEdges;
+	idWinding* w;
 	aasFace_t face;
 
-	if ( portal->GetFaceNum() > 0 ) {
-		if ( side ) {
+	if (portal->GetFaceNum() > 0) {
+		if (side) {
 			*faceNum = -portal->GetFaceNum();
 		}
 		else {
@@ -231,53 +227,54 @@ bool idAASBuild::GetFaceForPortal( idBrushBSPPortal *portal, int side, int *face
 	}
 
 	w = portal->GetWinding();
+
+	faceEdges.SetNum(w->GetNumPoints());
+
 	// turn the winding into a sequence of edges
 	numFaceEdges = 0;
 	v1num = -1;		// first vertex unknown
-	for ( i = 0; i < w->GetNumPoints(); i++ ) {
-
-		GetEdge( (*w)[i].ToVec3(), (*w)[(i+1)%w->GetNumPoints()].ToVec3(), &faceEdges[numFaceEdges], v1num );
-
-		if ( faceEdges[numFaceEdges] ) {
+	for (i = 0; i < w->GetNumPoints(); i++) {
+		GetEdge((*w)[i].ToVec3(), (*w)[(i + 1) % w->GetNumPoints()].ToVec3(), &faceEdges[numFaceEdges], v1num);
+		if (faceEdges[numFaceEdges]) {
 			// last vertex of this edge is the first vertex of the next edge
-			v1num = file->edges[ abs(faceEdges[numFaceEdges]) ].vertexNum[ INTSIGNBITNOTSET(faceEdges[numFaceEdges]) ];
-
+			v1num = file->edges[abs(faceEdges[numFaceEdges])].vertexNum[INTSIGNBITNOTSET(faceEdges[numFaceEdges])];
 			// this edge is valid so keep it
 			numFaceEdges++;
 		}
 	}
 
 	// should have at least 3 edges
-	if ( numFaceEdges < 3 ) {
+	if (numFaceEdges < 3) {
 		return false;
 	}
 
 	// the polygon is invalid if some edge is found twice
-	for ( i = 0; i < numFaceEdges; i++ ) {
-		for ( j = i+1; j < numFaceEdges; j++ ) {
-			if ( faceEdges[i] == faceEdges[j] || faceEdges[i] == -faceEdges[j] ) {
+	for (i = 0; i < numFaceEdges; i++) {
+		for (j = i + 1; j < numFaceEdges; j++) {
+			if (faceEdges[i] == faceEdges[j] || faceEdges[i] == -faceEdges[j]) {
 				return false;
 			}
 		}
 	}
 
-	portal->SetFaceNum( file->faces.Num() );
+	portal->SetFaceNum(file->faces.Num());
 
-	face.planeNum = file->planeList.FindPlane( portal->GetPlane(), AAS_PLANE_NORMAL_EPSILON, AAS_PLANE_DIST_EPSILON );
+	face.planeNum = file->planeList.FindPlane(portal->GetPlane(), AAS_PLANE_NORMAL_EPSILON, AAS_PLANE_DIST_EPSILON);
 	face.flags = portal->GetFlags();
 	face.areas[0] = face.areas[1] = 0;
 	face.firstEdge = file->edgeIndex.Num();
 	face.numEdges = numFaceEdges;
-	for ( i = 0; i < numFaceEdges; i++ ) {
-		file->edgeIndex.Append( faceEdges[i] );
+	for (i = 0; i < numFaceEdges; i++) {
+		file->edgeIndex.Append(faceEdges[i]);
 	}
-	if ( side ) {
+
+	if (side) {
 		*faceNum = -file->faces.Num();
 	}
 	else {
 		*faceNum = file->faces.Num();
 	}
-	file->faces.Append( face );
+	file->faces.Append(face);
 
 	return true;
 }

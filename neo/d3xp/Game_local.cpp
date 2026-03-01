@@ -33,6 +33,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "Game_local.h"
 
 #include "gamesys/SysCvar.h"	
+#include "ai/AAS_local.h"
 
 #ifdef GAME_DLL
 
@@ -1058,9 +1059,24 @@ void idGameLocal::LoadMap( const char* mapName, int randseed )
 	playerConnectedAreas.i = -1;
 	
 	// load navigation system for all the different monster sizes
+	/*
 	for( int i = 0; i < aasNames.Num(); i++ )
 	{
 		aasList[ i ]->Init( idStr( mapFileName ).SetFileExtension( aasNames[ i ] ).c_str(), mapFile->GetGeometryCRC() );
+	} */
+	
+	// load navigation system for all the different monster sizes
+	// If CRC check fails, print warning and load files anyway
+	// FIXME: CRC check doesn't seem to work - warnings don't print
+	for (int i = 0; i < aasNames.Num(); i++)
+	{
+		idAASLocal* aasLocal = static_cast<idAASLocal*>(aasList[i]);
+		aasLocal->Shutdown();
+		aasLocal->Init(idStr(mapFileName).SetFileExtension(aasNames[i]).c_str(), 0);
+		if (aasLocal->GetCRC() && aasLocal->GetCRC() != mapFile->GetGeometryCRC())
+		{
+			common->Warning("AAS file '%s' is out of date", aasNames[i].c_str());
+		}
 	}
 	
 	// clear the smoke particle free list
@@ -6007,4 +6023,31 @@ bool idGameLocal::ProcessDemoCommand( idDemoFile * readDemo )
 	}
 
 	return true;
+}
+
+/*
+==================
+idGameLocal::ReloadAAS
+==================
+*/
+void idGameLocal::ReloadAAS() {
+	if (!mapFileName.Length()) {
+		common->Printf("No map loaded.\n");
+		return;
+	}
+
+	if (!aasList.Num()) {
+		common->Printf("No AAS loaded.\n");
+		return;
+	}
+
+	common->Printf("Reloading %d AAS file(s)...\n", aasList.Num());
+
+	for (int i = 0; i < aasNames.Num(); i++) {
+		idAASLocal* aasLocal = static_cast<idAASLocal*>(aasList[i]);
+		aasLocal->Shutdown();
+		aasLocal->Init(idStr(mapFileName).SetFileExtension(aasNames[i]).c_str(), 0);
+	}
+
+	common->Printf("AAS reload complete.\n");
 }
