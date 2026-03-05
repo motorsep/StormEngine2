@@ -41,6 +41,7 @@ static const __m128 vector_float_negInfinity		= { -idMath::INFINITY, -idMath::IN
 static const char* MD5_SnapshotName = "_MD5_Snapshot_";
 
 static const byte MD5B_VERSION = 106;
+//static const byte MD5B_VERSION = 107;   // was 106; bump to invalidate old caches
 static const unsigned int MD5B_MAGIC = ( '5' << 24 ) | ( 'D' << 16 ) | ( 'M' << 8 ) | MD5B_VERSION;
 
 idCVar r_useGPUSkinning( "r_useGPUSkinning", "1", CVAR_INTEGER, "animate normals and tangents instead of deriving" );
@@ -103,7 +104,7 @@ idMD5Mesh::~idMD5Mesh()
 idMD5Mesh::ParseMesh
 ====================
 */
-void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joints )
+void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joints, bool isV12 )
 {
 	idToken		token;
 	idToken		name;
@@ -148,6 +149,16 @@ void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joi
 	firstWeightForVertex.SetNum( count );
 	numWeightsForVertex.SetNum( count );
 	
+	// Storage for v12 per-vertex normals and tangents (bone-local space)
+	idList<idVec3> vertNormals;
+	idList<idVec4> vertTangents;  // xyz = tangent dir, w = bitangent sign
+
+	if (isV12)
+	{
+		vertNormals.SetNum(count);
+		vertTangents.SetNum(count);
+	}
+
 	int numWeights = 0;
 	int maxweight = 0;
 	for( int i = 0; i < texCoords.Num(); i++ )
@@ -160,6 +171,12 @@ void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joi
 		firstWeightForVertex[ i ]	= parser.ParseInt();
 		numWeightsForVertex[ i ]	= parser.ParseInt();
 		
+		if (isV12)
+		{
+			parser.Parse1DMatrix(3, vertNormals[i].ToFloatPtr());
+			parser.Parse1DMatrix(4, vertTangents[i].ToFloatPtr());
+		}
+
 		if( !numWeightsForVertex[ i ] )
 		{
 			parser.Error( "Vertex without any joint weights." );
@@ -249,6 +266,24 @@ void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joi
 		weightIndex[count * 2 - 1] = 1;
 	}
 	
+	// v12: parse optional vertex colors (stored but not yet wired to rendering)
+	if (isV12)
+	{
+		idToken nextToken;
+		if (parser.CheckTokenString("numvertexcolors"))
+		{
+			int numColors = parser.ParseInt();
+			for (int i = 0; i < numColors; i++)
+			{
+				parser.ExpectTokenString("vertexcolor");
+				parser.ParseInt();  // index
+				idVec4 color;
+				parser.Parse1DMatrix(4, color.ToFloatPtr());
+				// TODO: store for future use when vertex color rendering is added
+			}
+		}
+	}
+
 	parser.ExpectTokenString( "}" );
 	
 	// update counters
@@ -279,6 +314,41 @@ void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joi
 		basePose[i].SetTexCoord( texCoords[i] );
 	}
 	
+	// v12: transform stored normals/tangents from bone-local to model space
+	if (isV12)
+	{
+		for (int i = 0; i < texCoords.Num(); i++)
+		{
+			// Find dominant joint (highest weight) for this vertex
+			int bestJoint = 0;
+			float bestWeight = 0.0f;
+			int num = firstWeightForVertex[i];
+			for (int j = 0; j < numWeightsForVertex[i]; j++)
+			{
+				if (tempWeights[num + j].jointWeight > bestWeight)
+				{
+					bestWeight = tempWeights[num + j].jointWeight;
+					bestJoint = tempWeights[num + j].joint;
+				}
+			}
+
+			// Transform from bone-local space to model space using the joint's rotation
+			const idMat3 jointRot = joints[bestJoint].ToMat3();
+
+			idVec3 modelNormal = jointRot * vertNormals[i];
+			modelNormal.Normalize();
+
+			idVec3 modelTangent = jointRot * vertTangents[i].ToVec3();
+			modelTangent.Normalize();
+
+			float biTangentSign = vertTangents[i].w;
+
+			basePose[i].SetNormal(modelNormal);
+			basePose[i].SetTangent(modelTangent);
+			basePose[i].SetBiTangentSign(biTangentSign);
+		}
+	}
+
 	// build the weights and bone indexes into the verts, so they will be duplicated
 	// as necessary at mirror seems
 	
@@ -427,7 +497,7 @@ void idMD5Mesh::ParseMesh( idLexer& parser, int numJoints, const idJointMat* joi
 	// build the deformInfo and collect a final base pose with the mirror
 	// seam verts properly including the bone weights
 	deformInfo = R_BuildDeformInfo( texCoords.Num(), basePose, tris.Num(), tris.Ptr(),
-									shader->UseUnsmoothedTangents() );
+									shader->UseUnsmoothedTangents(), isV12 );
 									
 	for( int i = 0; i < deformInfo->numOutputVerts; i++ )
 	{
@@ -993,10 +1063,16 @@ void idRenderModelMD5::LoadModel()
 	parser.ExpectTokenString( MD5_VERSION_STRING );
 	version = parser.ParseInt();
 	
-	if( version != MD5_VERSION )
+	/*if (version != MD5_VERSION)
 	{
 		parser.Error( "Invalid version %d.  Should be version %d\n", version, MD5_VERSION );
+	}*/
+	if (version != MD5_VERSION && version != MD5_VERSION_V12)
+	{
+		parser.Error("Invalid version %d. Should be %d or %d\n",
+			version, MD5_VERSION, MD5_VERSION_V12);
 	}
+	isV12 = (version == MD5_VERSION_V12);
 	
 	//
 	// skip commandline
@@ -1063,7 +1139,8 @@ void idRenderModelMD5::LoadModel()
 	for( int i = 0; i < meshes.Num(); i++ )
 	{
 		parser.ExpectTokenString( "mesh" );
-		meshes[i].ParseMesh( parser, defaultPose.Num(), poseMat );
+		//meshes[i].ParseMesh( parser, defaultPose.Num(), poseMat );
+		meshes[i].ParseMesh(parser, defaultPose.Num(), poseMat, isV12);
 	}
 	
 	// calculate the bounds of the model

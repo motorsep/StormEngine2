@@ -218,7 +218,7 @@ void R_FreeStaticTriSurf( srfTriangles_t* tri )
 			}
 		}
 	}
-	
+
 	if (!tri->facePlanes) {
 		Mem_Free(tri->facePlanes);
 		tri->facePlanes = NULL;
@@ -413,7 +413,6 @@ void R_AllocStaticTriSurfPreLightShadowVerts( srfTriangles_t* tri, int numVerts 
 	tri->preLightShadowVertexes = ( idShadowVert* )Mem_Alloc16( numVerts * sizeof( idShadowVert ), TAG_TRI_SHADOW );
 }
 
-
 /*
 =================
 R_AllocStaticTriSurfPlanes
@@ -423,10 +422,9 @@ void R_AllocStaticTriSurfPlanes(srfTriangles_t* tri, int numIndexes) {
 	if (tri->facePlanes) {
 		Mem_Free(tri->facePlanes);
 	}
-	
+
 	tri->facePlanes = (idPlane*)Mem_Alloc(numIndexes / 3 * sizeof(idPlane), TAG_TRI_PLANES);
 }
-
 
 /*
 =================
@@ -1989,7 +1987,8 @@ R_BuildDeformInfo
 ===================
 */
 deformInfo_t* R_BuildDeformInfo( int numVerts, const idDrawVert* verts, int numIndexes, const int* indexes,
-								 bool useUnsmoothedTangents )
+								 bool useUnsmoothedTangents,
+								 bool hasExplicitTangents)
 {
 	srfTriangles_t	tri;
 	memset( &tri, 0, sizeof( srfTriangles_t ) );
@@ -2012,11 +2011,22 @@ deformInfo_t* R_BuildDeformInfo( int numVerts, const idDrawVert* verts, int numI
 	R_IdentifySilEdges( &tri, false );			// we cannot remove coplanar edges, because they can deform to silhouettes
 	R_DuplicateMirroredVertexes( &tri );		// split mirror points into multiple points
 	R_CreateDupVerts( &tri );
-	if( useUnsmoothedTangents )
+
+	if (hasExplicitTangents)
 	{
-		R_BuildDominantTris( &tri );
+		// v12: normals/tangents already set on input verts, copied by
+		// R_DuplicateMirroredVertexes. Mark as calculated so nothing
+		// overwrites them.
+		tri.tangentsCalculated = true;
 	}
-	R_DeriveTangents( &tri );
+	else
+	{
+		if (useUnsmoothedTangents)
+		{
+			R_BuildDominantTris(&tri);
+		}
+		R_DeriveTangents(&tri);
+	}
 	
 	deformInfo_t* deform = ( deformInfo_t* )R_ClearedStaticAlloc( sizeof( *deform ) );
 	
@@ -2227,12 +2237,9 @@ void R_CreateStaticBuffersForTri( srfTriangles_t& tri )
 	}
 }
 
-
-
 /*
 =====================
 R_DeriveFacePlanes
-
 Writes the facePlanes values, overwriting existing ones if present
 =====================
 */

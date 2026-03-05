@@ -210,11 +210,11 @@ bool idMD5Anim::LoadAnim( const char* filename )
 	
 	Free();
 	
-	parser.ExpectTokenString( MD5_VERSION_STRING );
+	parser.ExpectTokenString(MD5_VERSION_STRING);
 	int version = parser.ParseInt();
-	if( version != MD5_VERSION )
+	if (version != MD5_VERSION && version != MD5_VERSION_V12)
 	{
-		parser.Error( "Invalid version %d.  Should be version %d\n", version, MD5_VERSION );
+		parser.Error("Invalid version %d.  Should be version %d or %d\n", version, MD5_VERSION, MD5_VERSION_V12);
 	}
 	
 	// skip the commandline

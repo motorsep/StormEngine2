@@ -179,7 +179,8 @@ public:
 	idMD5Mesh();
 	~idMD5Mesh();
 	
-	void						ParseMesh( idLexer& parser, int numJoints, const idJointMat* joints );
+	//void						ParseMesh( idLexer& parser, int numJoints, const idJointMat* joints );
+	void                        ParseMesh(idLexer& parser, int numJoints,  const idJointMat* joints, bool isV12);
 	
 	int							NumVerts() const
 	{
@@ -238,6 +239,7 @@ private:
 	idList<idJointQuat, TAG_MODEL>	defaultPose;
 	idList<idJointMat, TAG_MODEL>	invertedDefaultPose;
 	idList<idMD5Mesh, TAG_MODEL>	meshes;
+	bool                            isV12;          // MD5Version 12
 	
 	void						DrawJoints( const renderEntity_t* ent, const viewDef_t* view ) const;
 	void						ParseJoint( idLexer& parser, idMD5Joint* joint, idJointQuat* defaultPose );
@@ -257,6 +259,7 @@ struct md3Surface_s;
 class idRenderModelMD3 : public idRenderModelStatic
 {
 public:
+
 	virtual void				InitFromFile( const char* fileName );
 	virtual bool				SupportsBinaryModel()
 	{

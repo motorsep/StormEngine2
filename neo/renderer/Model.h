@@ -44,6 +44,8 @@ If you have questions concerning this license or the applicable additional terms
 #define MD5_ANIM_EXT			"md5anim"
 #define MD5_CAMERA_EXT			"md5camera"
 #define MD5_VERSION				10
+#define MD5_VERSION_V12         12   // extended: per-vertex normals, MikkTSpace tangents
+
 
 #include "jobs/ShadowShared.h"
 #include "jobs/prelightshadowvolume/PreLightShadowVolume.h"
@@ -120,7 +122,7 @@ struct srfTriangles_t
 	vertCacheHandle_t			indexCache;				// GL_INDEX_TYPE
 	vertCacheHandle_t			ambientCache;			// idDrawVert
 	vertCacheHandle_t			shadowCache;			// idVec4
-
+	
 	bool						facePlanesCalculated;	// set when the face planes have been calculated
 	idPlane* facePlanes;
 

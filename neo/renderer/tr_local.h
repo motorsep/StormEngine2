@@ -1423,7 +1423,8 @@ struct deformInfo_t
 
 // if outputVertexes is not NULL, it will point to a newly allocated set of verts that includes the mirrored ones
 deformInfo_t* 		R_BuildDeformInfo( int numVerts, const idDrawVert* verts, int numIndexes, const int* indexes,
-									   bool useUnsmoothedTangents );
+									   bool useUnsmoothedTangents, 
+									   bool hasExplicitTangents = false);
 void				R_FreeDeformInfo( deformInfo_t* deformInfo );
 int					R_DeformInfoMemoryUsed( deformInfo_t* deformInfo );
 
