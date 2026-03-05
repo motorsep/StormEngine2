@@ -1,0 +1,29 @@
+/*
+===========================================================================
+
+G-Buffer normal output during depth pre-pass (skinned version shares this pixel shader).
+Encodes view-space normal XYZ into RGB.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+struct PS_IN {
+	float4 position  : VPOS;
+	float3 texcoord0 : TEXCOORD0;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float3 N = normalize( fragment.texcoord0 );
+
+	// Encode view-space normal into [0,1] range
+	result.color.x = N.x * 0.5 + 0.5;
+	result.color.y = N.y * 0.5 + 0.5;
+	result.color.z = N.z * 0.5 + 0.5;
+	result.color.w = 1.0;
+}

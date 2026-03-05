@@ -189,7 +189,19 @@ idCVar r_showMemory( "r_showMemory", "0", CVAR_RENDERER | CVAR_BOOL, "print fram
 idCVar r_showCull( "r_showCull", "0", CVAR_RENDERER | CVAR_BOOL, "report sphere and box culling stats" );
 idCVar r_showAddModel( "r_showAddModel", "0", CVAR_RENDERER | CVAR_BOOL, "report stats from tr_addModel" );
 idCVar r_showDepth( "r_showDepth", "0", CVAR_RENDERER | CVAR_BOOL, "display the contents of the depth buffer and the depth range" );
+// G-Buffer
+idCVar r_showGbuffer("r_showGbuffer", "0", CVAR_RENDERER | CVAR_BOOL, "display the G-Buffer normal texture");
+idCVar r_useGbuffer("r_useGbuffer", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "write view-space normals during depth pre-pass for SSAO/SSR");
 idCVar r_showSurfaces( "r_showSurfaces", "0", CVAR_RENDERER | CVAR_BOOL, "report surface/light/shadow counts" );
+// SSAO
+idCVar r_ssao("r_ssao", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "enable screen-space ambient occlusion");
+idCVar r_ssaoRadius("r_ssaoRadius", "32.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "SSAO sample radius in world units");
+idCVar r_ssaoIntensity("r_ssaoIntensity", "1.8", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "SSAO darkening intensity");
+idCVar r_ssaoBias("r_ssaoBias", "0.05", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "SSAO angle bias to reduce self-occlusion");
+//idCVar r_ssaoMaxDistance("r_ssaoMaxDistance", "384.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum distance for AO in world units");
+idCVar r_ssaoProjScale("r_ssaoMaxDistance", "384.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum distance for AO in world units");
+idCVar r_showSSAO("r_showSSAO", "0", CVAR_RENDERER | CVAR_BOOL, "display the SSAO buffer");
+
 idCVar r_showPrimitives( "r_showPrimitives", "0", CVAR_RENDERER | CVAR_INTEGER, "report drawsurf/index/vertex counts" );
 idCVar r_showEdges( "r_showEdges", "0", CVAR_RENDERER | CVAR_BOOL, "draw the sil edges" );
 idCVar r_showTexturePolarity( "r_showTexturePolarity", "0", CVAR_RENDERER | CVAR_BOOL, "shade triangles by texture area polarity" );
@@ -2983,6 +2995,7 @@ void idRenderSystemLocal::BeginLevelLoad()
 	
 	// Re-Initialize the Default Materials if needed.
 	R_InitMaterials();
+	declManager->BeginLevelLoad(); // motorsep 04-17-2023; preload light materials (or any materials for that matter, if we want)
 }
 
 /*

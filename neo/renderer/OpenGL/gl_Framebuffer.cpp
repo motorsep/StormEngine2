@@ -388,6 +388,16 @@ void idFramebufferManager::Init()
 	// these will be set by the first call to idFramebuffer::Bind
 	sysfbo = 0;
 	gotsysfbo = false;
+	// G-Buffer framebuffer: shares depth-stencil with viewFramebuffer, adds normal color output
+	gbufferFramebuffer = AllocFramebuffer("_gbufferFramebuffer");
+	gbufferFramebuffer->SetDepthStencilAttachment(globalImages->viewFramebufferDepthImage);
+	gbufferFramebuffer->SetColorAttachment(0, globalImages->gbufferNormalImage);
+
+	// SSAO framebuffers - no depth attachment needed, just color
+	ssaoFramebuffer = AllocFramebuffer("_ssaoFramebuffer");
+	ssaoFramebuffer->SetColorAttachment(0, globalImages->ssaoImage);
+	ssaoBlurTempFramebuffer = AllocFramebuffer("_ssaoBlurTempFramebuffer");
+	ssaoBlurTempFramebuffer->SetColorAttachment(0, globalImages->ssaoBlurTempImage);
 }
 
 /*

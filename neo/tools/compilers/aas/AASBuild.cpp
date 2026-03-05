@@ -32,7 +32,12 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "AASBuild_local.h"
 
+#include "../dmap/renderer/DmapModelManager.h"
+
+#include "../../framework/Common_local.h"
+
 #define BFL_PATCH		0x1000
+#define BFL_MESH		0x2000
 
 //===============================================================
 //
@@ -498,6 +503,173 @@ idBrushList idAASBuild::AddBrushesForMapPatch( const idDmapMapPatch *mapPatch, c
 
 /*
 ============
+idAASBuild::AddBrushesForStaticMesh
+
+  Converts triangles from a static mesh model into AAS brushes.
+  Uses the same pattern as AddBrushesForMapPatch for triangle-to-brush conversion.
+============
+*/
+idBrushList idAASBuild::AddBrushesForStaticMesh(const idDmapMapEntity* mapEnt, int entityNum, idBrushList brushList) {
+	int j, s, validBrushes, totalTris;
+	idVec3 origin;
+	idMat3 axis;
+	idStr modelName;
+	const idMaterial* mat;
+	int contents;
+	idFixedWinding w;
+	idPlane plane;
+	idVec3 d1, d2;
+	idBrush* brush;
+
+	// get entity transform
+	mapEnt->epairs.GetVector("origin", "0 0 0", origin);
+	if (!mapEnt->epairs.GetMatrix("rotation", "1 0 0 0 1 0 0 0 1", axis)) {
+		float angle = mapEnt->epairs.GetFloat("angle");
+		if (angle != 0.0f) {
+			axis = idAngles(0.0f, angle, 0.0f).ToMat3();
+		}
+		else {
+			axis.Identity();
+		}
+	}
+
+	// get model name
+	mapEnt->epairs.GetString("model", "", modelName);
+	if (modelName.IsEmpty()) {
+		return brushList;
+	}
+
+	// load the model through the dmap render model manager
+	idDmapRenderModel* model = dmapRenderModelManager->FindModel(modelName.c_str());
+	if (!model) {
+		common->Warning("AAS: FindModel returned NULL for '%s' entity %d", modelName.c_str(), entityNum);
+		return brushList;
+	}
+	if (model->IsDefaultModel()) {
+		common->Warning("AAS: FindModel returned default model for '%s' entity %d", modelName.c_str(), entityNum);
+		return brushList;
+	}
+
+	common->Printf("    model loaded: %d surfaces\n", model->NumSurfaces());
+
+	validBrushes = 0;
+	totalTris = 0;
+
+	for (s = 0; s < model->NumSurfaces(); s++) {
+		const dmapModelSurface_t* surf = model->Surface(s);
+
+		if (!surf || !surf->geometry) {
+			continue;
+		}
+
+		// check material content flags
+		mat = surf->shader;
+		if (!mat) {
+			continue;
+		}
+		contents = ContentsForAAS(mat->GetContentFlags());
+		if (!contents) {
+			common->Printf("    surface %d: material '%s' contentFlags=0x%x — not solid, skipping\n",
+				s, mat->GetName(), mat->GetContentFlags());
+			continue;
+		}
+
+		const srfDmapTriangles_t* tri = surf->geometry;
+
+		// iterate triangles (every 3 indices)
+		for (j = 0; j < tri->numIndexes; j += 3) {
+			const idVec3& v0 = tri->verts[tri->indexes[j + 0]].xyz;
+			const idVec3& v1 = tri->verts[tri->indexes[j + 1]].xyz;
+			const idVec3& v2 = tri->verts[tri->indexes[j + 2]].xyz;
+
+			totalTris++;
+
+			// compute triangle plane
+			d1 = v1 - v0;
+			d2 = v2 - v0;
+			plane.SetNormal(d1.Cross(d2));
+			if (plane.Normalize() < 0.01f) {
+				continue;
+			}
+			plane.FitThroughPoint(v0);
+
+			// slope pre-filter
+			{
+				float slopeCos = aasSettings->meshSlopeCos;
+				if (slopeCos < 0.0f) {
+					slopeCos = aasSettings->minFloorCos;
+				}
+				float dot = idMath::Fabs(plane.Normal().z);
+				if (dot < slopeCos) {
+					continue;
+				}
+			}
+
+			// build thin brush from explicit sides
+			idList<idBrushSide*> sideList;
+
+			// front face — the triangle surface
+			sideList.Append(new idBrushSide(plane, -1));
+
+			// back face — 1 unit behind the surface (opposite direction of normal)
+			idPlane backPlane;
+			backPlane.SetNormal(-plane.Normal());
+			backPlane.FitThroughPoint(v0 - plane.Normal());
+			sideList.Append(new idBrushSide(backPlane, -1));
+
+			// edge planes — one per triangle edge
+			for (int e = 0; e < 3; e++) {
+				const idVec3& ea = (e == 0) ? v0 : ((e == 1) ? v1 : v2);
+				const idVec3& eb = (e == 0) ? v1 : ((e == 1) ? v2 : v0);
+				idVec3 edgeDir = eb - ea;
+				idVec3 sideNormal = edgeDir.Cross(plane.Normal());
+				if (sideNormal.Normalize() < 0.01f) {
+					continue;
+				}
+				idPlane sidePlane;
+				sidePlane.SetNormal(sideNormal);
+				sidePlane.FitThroughPoint(ea);
+				sideList.Append(new idBrushSide(sidePlane, -1));
+			}
+
+			if (sideList.Num() < 5) {
+				for (int k = 0; k < sideList.Num(); k++) {
+					delete sideList[k];
+				}
+				continue;
+			}
+
+			brush = new idBrush();
+			brush->SetContents(contents);
+			if (brush->FromSides(sideList)) {
+				brush->SetEntityNum(entityNum);
+				brush->SetPrimitiveNum(s);
+				brush->SetFlag(BFL_PATCH);
+				brush->Transform(origin, axis);
+				brushList.AddToTail(brush);
+				validBrushes++;
+			}
+			else {
+				delete brush;
+			}
+		}
+	}
+
+	if (validBrushes > 0) {
+		common->Printf("    entity %d model '%s': %d tris, %d brushes\n",
+			entityNum, modelName.c_str(), totalTris, validBrushes);
+	}
+	else {
+		common->Printf("    entity %d model '%s': %d tris, 0 valid brushes!\n",
+			entityNum, modelName.c_str(), totalTris);
+	}
+
+	return brushList;
+}
+
+
+/*
+============
 idAASBuild::AddBrushesForMapEntity
 ============
 */
@@ -544,22 +716,70 @@ idBrushList idAASBuild::AddBrushesForMapEntity( const idDmapMapEntity *mapEnt, i
 idAASBuild::AddBrushesForMapFile
 ============
 */
-idBrushList idAASBuild::AddBrushesForMapFile( const idDmapMapFile * mapFile, idBrushList brushList ) {
+idBrushList idAASBuild::AddBrushesForMapFile(const idDmapMapFile* mapFile, idBrushList brushList) {
 	int i;
 
-	common->Printf( "[Brush Load]\n" );
+	common->Printf("[Brush Load]\n");
 
-	brushList = AddBrushesForMapEntity( mapFile->GetEntity( 0 ), 0, brushList );
+	brushList = AddBrushesForMapEntity(mapFile->GetEntity(0), 0, brushList);
 
-	for ( i = 1; i < mapFile->GetNumEntities(); i++ ) {
-		const char *classname = mapFile->GetEntity( i )->epairs.GetString( "classname" );
+	for (i = 1; i < mapFile->GetNumEntities(); i++) {
+		const char* classname = mapFile->GetEntity(i)->epairs.GetString("classname");
 
-		if ( idStr::Icmp( classname, "func_aas_obstacle" ) == 0 ) {
-			brushList = AddBrushesForMapEntity( mapFile->GetEntity( i ), i, brushList );
+		if (idStr::Icmp(classname, "func_aas_obstacle") == 0) {
+			brushList = AddBrushesForMapEntity(mapFile->GetEntity(i), i, brushList);
 		}
 	}
 
-	common->Printf( "%6d brushes\n", brushList.Num() );
+	// scan for static mesh entities if useStaticMeshes is enabled
+	if (aasSettings->useStaticMeshes) {
+		int meshBrushCount = brushList.Num();
+
+		common->Printf("[Static Mesh Load]\n");
+
+		for (i = 1; i < mapFile->GetNumEntities(); i++) {
+			const idDmapMapEntity* mapEnt = mapFile->GetEntity(i);
+			const char* classname = mapEnt->epairs.GetString("classname");
+
+			// only include entities that are explicitly marked for AAS navigation
+			if (!mapEnt->epairs.GetBool("useAAS", "0")) {
+				continue;
+			}
+
+			common->Printf("  entity %d class '%s' has useAAS\n", i, classname);
+
+			// check if the model key points to a mesh file
+			idStr modelName;
+			mapEnt->epairs.GetString("model", "", modelName);
+			if (modelName.IsEmpty()) {
+				common->Printf("  entity %d: no model key, skipping\n", i);
+				continue;
+			}
+
+			common->Printf("  entity %d: model = '%s'\n", i, modelName.c_str());
+
+			// only process known mesh file formats
+			idStr ext;
+			modelName.ExtractFileExtension(ext);
+			common->Printf("  entity %d: extracted extension = '%s'\n", i, ext.c_str());
+
+			if (ext.Icmp("ase") != 0 &&
+				ext.Icmp("lwo") != 0 &&
+				ext.Icmp("ma") != 0 &&
+				ext.Icmp("flt") != 0 &&
+				ext.Icmp("obj") != 0) {
+				common->Printf("  entity %d: extension not recognized, skipping\n", i);
+				continue;
+			}
+
+			brushList = AddBrushesForStaticMesh(mapEnt, i, brushList);
+		}
+
+		meshBrushCount = brushList.Num() - meshBrushCount;
+		common->Printf("%6d mesh brushes\n", meshBrushCount);
+	}
+
+	common->Printf("%6d total brushes\n", brushList.Num());
 
 	return brushList;
 }
@@ -637,12 +857,12 @@ void idAASBuild::ChangeMultipleBoundingBoxContents_r( idBrushBSPNode *node, int 
 idAASBuild::Build
 ============
 */
-bool idAASBuild::Build( const idStr &fileName, const idAASSettings *settings ) {
+bool idAASBuild::Build(const idStr& fileName, const idAASSettings* settings) {
 	int i, bit, mask, startTime;
-	idDmapMapFile * mapFile;
+	idDmapMapFile* mapFile;
 	idBrushList brushList;
 	idList<idBrushList*> expandedBrushes;
-	idBrush *b;	
+	idBrush* b;
 	idStr name;
 	idAASReach reach;
 	idAASCluster cluster;
@@ -654,140 +874,200 @@ bool idAASBuild::Build( const idStr &fileName, const idAASSettings *settings ) {
 
 	aasSettings = settings;
 
+	// PACIFIER: start the visual progress bar
+	commonLocal.LoadPacifierBinarizeFilename(fileName.c_str(), "AAS compile");
+	commonLocal.LoadPacifierBinarizeInfo("Initializing...");
+	commonLocal.LoadPacifierBinarizeProgress(0.0f);
+
 	name = fileName;
-	name.SetFileExtension( "map" );
+	name.SetFileExtension("map");
 
 	mapFile = new idDmapMapFile;
-	if ( !mapFile->Parse( name ) ) {
+	if (!mapFile->Parse(name)) {
 		delete mapFile;
-		common->Error( "Couldn't load map file: '%s'", name.c_str() );
+		commonLocal.LoadPacifierBinarizeEnd();		// PACIFIER: cleanup on error
+		common->Error("Couldn't load map file: '%s'", name.c_str());
 		return false;
 	}
 
 	// check if this map has any entities that use this AAS file
-	if ( !CheckForEntities( mapFile, entityClassNames ) ) {
+	if (!CheckForEntities(mapFile, entityClassNames)) {
 		delete mapFile;
-		common->Printf( "no entities in map that use %s\n", settings->fileExtension.c_str() );
+		commonLocal.LoadPacifierBinarizeEnd();		// PACIFIER: cleanup on early exit
+		common->Printf("no entities in map that use %s\n", settings->fileExtension.c_str());
 		return true;
 	}
 
 	// load map file brushes
-	brushList = AddBrushesForMapFile( mapFile, brushList );
+	commonLocal.LoadPacifierBinarizeInfo("Loading brushes...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.0f);				// PACIFIER
+
+	brushList = AddBrushesForMapFile(mapFile, brushList);
 
 	// if empty map
-	if ( brushList.Num() == 0 ) {
+	if (brushList.Num() == 0) {
 		delete mapFile;
-		common->Error( "%s is empty", name.c_str() );
+		commonLocal.LoadPacifierBinarizeEnd();		// PACIFIER: cleanup on error
+		common->Error("%s is empty", name.c_str());
 		return false;
 	}
 
 	// merge as many brushes as possible before expansion
-	brushList.Merge( MergeAllowed );
+	commonLocal.LoadPacifierBinarizeInfo("Merging brushes...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.05f);				// PACIFIER
+
+	brushList.Merge(MergeAllowed);
 
 	// if there is a .proc file newer than the .map file
-	if ( LoadProcBSP( fileName, mapFile->GetFileTime() ) ) {
-		ClipBrushSidesWithProcBSP( brushList );
+	if (LoadProcBSP(fileName, mapFile->GetFileTime())) {
+		ClipBrushSidesWithProcBSP(brushList);
 		DeleteProcBSP();
 	}
 
 	// make copies of the brush list
-	expandedBrushes.Append( &brushList );
-	for ( i = 1; i < aasSettings->numBoundingBoxes; i++ ) {
-		expandedBrushes.Append( brushList.Copy() );
+	expandedBrushes.Append(&brushList);
+	for (i = 1; i < aasSettings->numBoundingBoxes; i++) {
+		expandedBrushes.Append(brushList.Copy());
 	}
 
 	// expand brushes for the axial bounding boxes
+	commonLocal.LoadPacifierBinarizeInfo("Expanding brushes...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.08f);				// PACIFIER
+
 	mask = AREACONTENTS_SOLID;
-	for ( i = 0; i < expandedBrushes.Num(); i++ ) {
-		for ( b = expandedBrushes[i]->Head(); b; b = b->Next() ) {
-			b->ExpandForAxialBox( aasSettings->boundingBoxes[i] );
-			bit = 1 << ( i + AREACONTENTS_BBOX_BIT );
+	for (i = 0; i < expandedBrushes.Num(); i++) {
+		for (b = expandedBrushes[i]->Head(); b; b = b->Next()) {
+			b->ExpandForAxialBox(aasSettings->boundingBoxes[i]);
+			bit = 1 << (i + AREACONTENTS_BBOX_BIT);
 			mask |= bit;
-			b->SetContents( b->GetContents() | bit );
+			b->SetContents(b->GetContents() | bit);
 		}
 	}
 
 	// move all brushes back into the original list
-	for ( i = 1; i < aasSettings->numBoundingBoxes; i++ ) {
-		brushList.AddToTail( *expandedBrushes[i] );
+	for (i = 1; i < aasSettings->numBoundingBoxes; i++) {
+		brushList.AddToTail(*expandedBrushes[i]);
 		delete expandedBrushes[i];
 	}
 
-	idDmapMapEntity * wrld = mapFile->FindEntityByClassName( "worldspawn" );
+	idDmapMapEntity* wrld = mapFile->FindEntityByClassName("worldspawn");
 
-	const int bspGridSize = wrld ? wrld->epairs.GetInt( "bsp_gridsize", 512 ) : 512;
-
+	int bspGridSize = wrld ? wrld->epairs.GetInt("bsp_gridsize", 512) : 512;
+	
+	common->Printf("  worldspawn found: %s, bsp_gridsize = %d\n", wrld ? "yes" : "no", bspGridSize);
+	
+	if (bspGridSize < 64) {
+		common->Warning("bsp_gridsize too small or invalid (%d), using 512", bspGridSize);
+		bspGridSize = 512;
+	}
+	common->Printf("  bsp_gridsize = %d\n", bspGridSize);
+	
 	// build BSP tree from brushes
-	idBrushBSP bsp( bspGridSize );
+	commonLocal.LoadPacifierBinarizeInfo("Building BSP...");		// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.10f);				// PACIFIER
 
-	if ( aasSettings->writeBrushMap ) {
-		bsp.WriteBrushMap( fileName, "_" + aasSettings->fileExtension, AREACONTENTS_SOLID );
+	idBrushBSP bsp(bspGridSize);
+
+	if (aasSettings->writeBrushMap) {
+		bsp.WriteBrushMap(fileName, "_" + aasSettings->fileExtension, AREACONTENTS_SOLID);
 	}
 
-	bsp.Build( brushList, AREACONTENTS_SOLID, ExpandedChopAllowed, ExpandedMergeAllowed );
+	bsp.Build(brushList, AREACONTENTS_SOLID, ExpandedChopAllowed, ExpandedMergeAllowed);
 
 	// only solid nodes with all bits set for all bounding boxes need to stay solid
-	ChangeMultipleBoundingBoxContents_r( bsp.GetRootNode(), mask );
+	ChangeMultipleBoundingBoxContents_r(bsp.GetRootNode(), mask);
 
 	// portalize the bsp tree
+	commonLocal.LoadPacifierBinarizeInfo("Portalizing BSP...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.50f);				// PACIFIER
+
 	bsp.Portalize();
 
 	// remove subspaces not reachable by entities
-	if ( !bsp.RemoveOutside( mapFile, AREACONTENTS_SOLID, entityClassNames ) ) {
-		bsp.LeakFile( name );
+	commonLocal.LoadPacifierBinarizeInfo("Removing outside...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.60f);				// PACIFIER
+
+	if (!bsp.RemoveOutside(mapFile, AREACONTENTS_SOLID, entityClassNames)) {
+		bsp.LeakFile(name);
 		delete mapFile;
-		common->Printf( "%s has no outside", name.c_str() );
+		commonLocal.LoadPacifierBinarizeEnd();		// PACIFIER: cleanup on error
+		common->Printf("%s has no outside", name.c_str());
 		return false;
 	}
 
 	// gravitational subdivision
-	GravitationalSubdivision( bsp );
+	commonLocal.LoadPacifierBinarizeInfo("Gravitational subdivision...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.65f);						// PACIFIER
+
+	GravitationalSubdivision(bsp);
 
 	// merge portals where possible
-	bsp.MergePortals( AREACONTENTS_SOLID );
+	commonLocal.LoadPacifierBinarizeInfo("Merging portals...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.70f);				// PACIFIER
+
+	bsp.MergePortals(AREACONTENTS_SOLID);
 
 	// melt portal windings
-	bsp.MeltPortals( AREACONTENTS_SOLID );
+	bsp.MeltPortals(AREACONTENTS_SOLID);
 
-	if ( aasSettings->writeBrushMap ) {
-		WriteLedgeMap( fileName, "_" + aasSettings->fileExtension + "_ledge" );
+	if (aasSettings->writeBrushMap) {
+		WriteLedgeMap(fileName, "_" + aasSettings->fileExtension + "_ledge");
 	}
 
 	// ledge subdivisions
-	LedgeSubdivision( bsp );
+	commonLocal.LoadPacifierBinarizeInfo("Ledge subdivision...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.75f);				// PACIFIER
+
+	LedgeSubdivision(bsp);
 
 	// merge leaf nodes
-	MergeLeafNodes( bsp );
+	MergeLeafNodes(bsp);
 
 	// merge portals where possible
-	bsp.MergePortals( AREACONTENTS_SOLID );
+	bsp.MergePortals(AREACONTENTS_SOLID);
 
 	// melt portal windings
-	bsp.MeltPortals( AREACONTENTS_SOLID );
+	bsp.MeltPortals(AREACONTENTS_SOLID);
 
 	// store the file from the bsp tree
-	StoreFile( bsp );
+	commonLocal.LoadPacifierBinarizeInfo("Storing AAS data...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.80f);				// PACIFIER
+
+	StoreFile(bsp);
 	file->settings = *aasSettings;
 
 	// calculate reachability
-	reach.Build( mapFile, file );
+	commonLocal.LoadPacifierBinarizeInfo("Calculating reachability...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.82f);						// PACIFIER
+
+	reach.Build(mapFile, file);
 
 	// build clusters
-	cluster.Build( file );
+	commonLocal.LoadPacifierBinarizeInfo("Building clusters...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.95f);				// PACIFIER
+
+	cluster.Build(file);
 
 	// optimize the file
-	if ( !aasSettings->noOptimize ) {
+	if (!aasSettings->noOptimize) {
 		file->Optimize();
 	}
 
 	// write the file
-	name.SetFileExtension( aasSettings->fileExtension );
-	file->Write( name, mapFile->GetGeometryCRC() );
+	commonLocal.LoadPacifierBinarizeInfo("Writing AAS file...");	// PACIFIER
+	commonLocal.LoadPacifierBinarizeProgress(0.98f);				// PACIFIER
+
+	name.SetFileExtension(aasSettings->fileExtension);
+	file->Write(name, mapFile->GetGeometryCRC());
 
 	// delete the map file
 	delete mapFile;
 
-	common->Printf( "%6d seconds to create AAS\n", (Sys_Milliseconds() - startTime) / 1000 );
+	common->Printf("%6d seconds to create AAS\n", (Sys_Milliseconds() - startTime) / 1000);
+
+	// PACIFIER: done
+	commonLocal.LoadPacifierBinarizeProgress(1.0f);
+	commonLocal.LoadPacifierBinarizeEnd();
 
 	return true;
 }
@@ -873,6 +1153,26 @@ int ParseOptions( const idCmdArgs &args, idAASSettings &settings ) {
 			settings.noOptimize = true;
 			common->Printf( "noOptimize = true\n" );
 		}
+		else if (str.Icmp("useStaticMeshes") == 0) {
+			settings.useStaticMeshes = true;
+			common->Printf("useStaticMeshes = true\n");
+		}
+		else if (str.Icmp("meshSlopeFilter") == 0) {
+			i++;
+			if (i < args.Argc()) {
+				float degrees = atof(args.Argv(i));
+				if (degrees > 0.0f && degrees <= 90.0f) {
+					settings.meshSlopeCos = idMath::Cos(DEG2RAD(degrees));
+					common->Printf("meshSlopeFilter = %.1f degrees (cos = %f)\n", degrees, settings.meshSlopeCos);
+				}
+				else {
+					common->Warning("meshSlopeFilter: angle must be between 0 and 90 degrees");
+				}
+			}
+			else {
+				common->Warning("meshSlopeFilter: missing angle value");
+			}
+		}
 	}
 	return args.Argc() - 1;
 }
@@ -889,12 +1189,13 @@ void RunAAS_f( const idCmdArgs &args ) {
 	idStr mapName;
 
 	if ( args.Argc() <= 1 ) {
-		common->Printf( "runAAS [options] <mapfile>\n"
-					"options:\n"
-					"  -usePatches        = use bezier patches for collision detection.\n"
-					"  -writeBrushMap     = write a brush map with the AAS geometry.\n"
-					"  -playerFlood       = use player spawn points as valid AAS positions.\n" );
-		return;
+		common->Printf("runAAS [options] <mapfile>\n"
+			"options:\n"
+			"  -usePatches        = use bezier patches for collision detection.\n"
+			"  -useStaticMeshes   = include static mesh models in AAS compilation.\n"
+			"  -meshSlopeFilter N = skip mesh triangles steeper than N degrees.\n"
+			"  -writeBrushMap     = write a brush map with the AAS geometry.\n"
+			"  -playerFlood       = use player spawn points as valid AAS positions.\n");
 	}
 
 	common->ClearWarnings( "compiling AAS" );
@@ -929,7 +1230,7 @@ void RunAAS_f( const idCmdArgs &args ) {
 		}
 	}
 	common->SetRefreshOnPrint( false );
-	common->PrintWarnings();
+	common->PrintWarnings();		
 }
 
 /*

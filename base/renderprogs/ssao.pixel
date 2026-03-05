@@ -1,0 +1,199 @@
+/*
+===========================================================================
+Scalable Ambient Obscurance (McGuire, Mara, Luebke - HPG 2012)
+Alchemy AO (McGuire, Osman, Bukowski, Hennessy - HPG 2011)
+
+Ported from RBDoom3BFG OpenGL-era shaders.
+Uses same conventions: rpModelMatrixX/Y/Z/W = inverse projection matrix,
+G-Buffer normals in view space, texelFetch for depth access.
+
+samp0 = G-Buffer normals (view space)
+samp1 = depth buffer
+
+rpModelMatrixX/Y/Z/W = inverse projection matrix
+rpScreenCorrectionFactor.xy = 1/width, 1/height (pixel to UV)
+rpDiffuseModifier.x = radius (Doom units)
+rpDiffuseModifier.y = intensity
+rpDiffuseModifier.z = bias (Doom units)
+rpDiffuseModifier.w = projScale
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0);
+uniform sampler2D samp1 : register(s1);
+
+struct PS_IN {
+	float4 position  : VPOS;
+	float2 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+#define NUM_SAMPLES 11
+#define NUM_SPIRAL_TURNS 7
+#define HIGH_QUALITY 1
+#define USE_MIPMAPS 0
+#define LOG_MAX_OFFSET 3
+#define MAX_MIP_LEVEL 5
+#define MIN_RADIUS 3.0
+
+// CVar-driven parameters via rpDiffuseModifier
+#define radius      rpDiffuseModifier.x
+#define intensity   rpDiffuseModifier.y
+#define bias        rpDiffuseModifier.z
+#define projScale   rpDiffuseModifier.w
+
+float3 reconstructCSPosition( float2 S, float z ) {
+	float4 P;
+	P.z = z * 2.0 - 1.0;
+	P.xy = ( S * rpScreenCorrectionFactor.xy ) * 2.0 - 1.0;
+	P.w = 1.0;
+
+	float4 csP;
+	csP.x = dot4( P, rpModelMatrixX );
+	csP.y = dot4( P, rpModelMatrixY );
+	csP.z = dot4( P, rpModelMatrixZ );
+	csP.w = dot4( P, rpModelMatrixW );
+
+	csP.xyz /= csP.w;
+
+	return csP.xyz;
+}
+
+float3 sampleNormal( sampler2D normalBuffer, int2 ssC, int mipLevel ) {
+	return texelFetch( normalBuffer, ssC, mipLevel ).xyz * 2.0 - 1.0;
+}
+
+float3 getPosition( int2 ssP, sampler2D cszBuffer ) {
+	float3 P;
+	P.z = texelFetch( cszBuffer, ssP, 0 ).r;
+	P = reconstructCSPosition( float2( ssP ) + float2( 0.5 ), P.z );
+	return P;
+}
+
+float2 tapLocation( int sampleNumber, float spinAngle, out float ssR ) {
+	float alpha = ( float( sampleNumber ) + 0.5 ) * ( 1.0 / float( NUM_SAMPLES ) );
+	float angle = alpha * ( float( NUM_SPIRAL_TURNS ) * 6.28 ) + spinAngle;
+	ssR = alpha;
+	return float2( cos( angle ), sin( angle ) );
+}
+
+float3 getOffsetPosition( int2 issC, float2 unitOffset, float ssR, sampler2D cszBuffer ) {
+	int2 ssP = int2( ssR * unitOffset ) + issC;
+
+	float3 P;
+	P.z = texelFetch( cszBuffer, ssP, 0 ).r;
+	P = reconstructCSPosition( float2( ssP ) + float2( 0.5 ), P.z );
+
+	return P;
+}
+
+float fallOffFunction( float vv, float vn, float epsilon ) {
+	float radius2 = radius * radius;
+	float invRadius2 = 1.0 / radius2;
+#if HIGH_QUALITY
+	float f = max( 1.0 - vv * invRadius2, 0.0 );
+	return f * max( ( vn - bias ) * rsqrt( epsilon + vv ), 0.0 );
+#else
+	float f = max( radius2 - vv, 0.0 );
+	return f * f * f * max( ( vn - bias ) / ( epsilon + vv ), 0.0 );
+#endif
+}
+
+float aoValueFromPositionsAndNormal( float3 C, float3 n_C, float3 Q ) {
+	float3 v = Q - C;
+	float vv = dot( v, v );
+	float vn = dot( v, n_C );
+	const float epsilon = 0.001;
+	return fallOffFunction( vv, vn, epsilon ) * lerp( 1.0, max( 0.0, 1.5 * n_C.z ), 0.35 );
+}
+
+float sampleAO( int2 issC, float3 C, float3 n_C, float ssDiskRadius,
+                int tapIndex, float randomPatternRotationAngle, sampler2D cszBuffer ) {
+	float ssR;
+	float2 unitOffset = tapLocation( tapIndex, randomPatternRotationAngle, ssR );
+	ssR = max( 0.75, ssR * ssDiskRadius );
+
+	// Check if the sample lands on a sky/portal/weapon pixel (zero normal).
+	// If so, reject it so it doesn't contribute false occlusion.
+	int2 sampleP = int2( ssR * unitOffset ) + issC;
+	float3 sampleN = texelFetch( samp0, sampleP, 0 ).xyz * 2.0 - 1.0;
+	if( dot( sampleN, sampleN ) < 0.01 ) {
+		return -1.0;
+	}
+
+	float3 Q = getOffsetPosition( issC, unitOffset, ssR, cszBuffer );
+
+	// Reject samples with extreme depth discontinuity (e.g. weapon vs world).
+	float depthDiff = Q.z - C.z;
+	if( depthDiff > radius ) {
+		return -1.0;
+	}
+
+	return aoValueFromPositionsAndNormal( C, n_C, Q );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	result.color = float4( 1.0, 0.0, 0.0, 1.0 );
+
+	int2 ssP = int2( fragment.position.xy );
+
+	float3 C = getPosition( ssP, samp1 );
+
+	float3 n_C = sampleNormal( samp0, ssP, 0 );
+
+	if( length( n_C ) < 0.01 ) {
+		result.color = float4( 1.0, 1.0, 1.0, 1.0 );
+		return;
+	}
+
+	n_C = normalize( n_C );
+
+	float randomPatternRotationAngle = float( ( ( 3 * ssP.x ) ^ ( ssP.y + ssP.x * ssP.y ) ) ) * 10.0;
+
+	float ssDiskRadius = -projScale * radius / C.z;
+
+	if( ssDiskRadius <= MIN_RADIUS ) {
+		result.color = float4( 1.0, 1.0, 1.0, 1.0 );
+		return;
+	}
+
+	// Cap the screen-space radius to prevent massive over-occlusion
+	const float MAX_RADIUS = 200.0;
+	ssDiskRadius = min( ssDiskRadius, MAX_RADIUS );
+
+	// Fade out SSAO for surfaces very close to the camera.
+	// C.z is negative in view space (more negative = farther).
+	// When closer than radius*2, start fading. Closer than radius*0.5, no AO.
+	float nearFade = saturate( ( -C.z - radius * 0.5 ) / ( radius * 1.5 ) );
+
+	float sum = 0.0;
+	int validSamples = 0;
+	for( int i = 0; i < NUM_SAMPLES; ++i ) {
+		float ao = sampleAO( ssP, C, n_C, ssDiskRadius, i, randomPatternRotationAngle, samp1 );
+		if( ao >= 0.0 ) {
+			sum += ao;
+			validSamples++;
+		}
+	}
+
+	if( validSamples == 0 ) {
+		result.color = float4( 1.0, 1.0, 1.0, 1.0 );
+		return;
+	}
+
+#if HIGH_QUALITY
+	float A = pow( max( 0.0, 1.0 - sqrt( sum * ( 3.0 / float( validSamples ) ) ) ), intensity );
+#else
+	float intensityDivR6 = intensity / ( radius * radius * radius * radius * radius * radius );
+	float A = max( 0.0, 1.0 - sum * intensityDivR6 * ( 5.0 / float( validSamples ) ) );
+#endif
+
+	float visibility = lerp( 1.0, A, saturate( ssDiskRadius - MIN_RADIUS ) * nearFade );
+
+	result.color = float4( visibility, visibility, visibility, 1.0 );
+}

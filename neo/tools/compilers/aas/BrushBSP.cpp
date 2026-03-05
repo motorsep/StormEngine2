@@ -33,10 +33,12 @@ If you have questions concerning this license or the applicable additional terms
 #include "Brush.h"
 #include "BrushBSP.h"
 
+#include "../../framework/Common_local.h"
+
 
 #define SPLITTER_EPSILON				0.1f
 #define VERTEX_MELT_EPSILON				0.1f
-#define VERTEX_MELT_HASH_SIZE			32
+//#define VERTEX_MELT_HASH_SIZE			32 // motorsep 02-03-2023; AAS fix from TDM
 
 #define PORTAL_PLANE_NORMAL_EPSILON		0.00001f
 #define PORTAL_PLANE_DIST_EPSILON		0.01f
@@ -434,8 +436,36 @@ int idBrushBSPNode::PlaneSide( const idPlane &plane, float epsilon ) const {
 /*
 ============
 idBrushBSPNode::RemoveFlagFlood
+non-recursive, iterative
 ============
 */
+void idBrushBSPNode::RemoveFlagFlood(int flag) {
+	idList<idBrushBSPNode*> stack;
+	stack.SetGranularity(4096);
+	stack.Append(this);
+
+	while (stack.Num() > 0) {
+		idBrushBSPNode* node = stack[stack.Num() - 1];
+		stack.SetNum(stack.Num() - 1);
+
+		node->RemoveFlag(flag);
+
+		int s;
+		for (idBrushBSPPortal* p = node->GetPortals(); p; p = p->Next(s)) {
+			s = (p->GetNode(1) == node);
+			if (p->GetNode(!s)->GetFlags() & flag) {
+				stack.Append(p->GetNode(!s));
+			}
+		}
+	}
+}
+
+/*
+============
+idBrushBSPNode::RemoveFlagFlood
+============
+*/
+/*
 void idBrushBSPNode::RemoveFlagFlood( int flag ) {
 	int s;
 	idBrushBSPPortal *p;
@@ -451,6 +481,32 @@ void idBrushBSPNode::RemoveFlagFlood( int flag ) {
 
 		p->GetNode( !s )->RemoveFlagFlood( flag );
 	}
+} */
+
+/*
+============
+idBrushBSPNode::RemoveFlagRecurse
+non-recursive, iterative
+============
+*/
+void idBrushBSPNode::RemoveFlagRecurse(int flag) {
+	idList<idBrushBSPNode*> stack;
+	stack.SetGranularity(4096);
+	stack.Append(this);
+
+	while (stack.Num() > 0) {
+		idBrushBSPNode* node = stack[stack.Num() - 1];
+		stack.SetNum(stack.Num() - 1);
+
+		node->RemoveFlag(flag);
+
+		if (node->children[0]) {
+			stack.Append(node->children[0]);
+		}
+		if (node->children[1]) {
+			stack.Append(node->children[1]);
+		}
+	}
 }
 
 /*
@@ -458,6 +514,7 @@ void idBrushBSPNode::RemoveFlagFlood( int flag ) {
 idBrushBSPNode::RemoveFlagRecurse
 ============
 */
+/*
 void idBrushBSPNode::RemoveFlagRecurse( int flag ) {
 	RemoveFlag( flag );
 	if ( children[0] ) {
@@ -466,6 +523,44 @@ void idBrushBSPNode::RemoveFlagRecurse( int flag ) {
 	if ( children[1] ) {
 		children[1]->RemoveFlagRecurse( flag );
 	}
+} */
+
+/*
+============
+idBrushBSPNode::RemoveFlagRecurseFlood
+non-recursive, iterative
+============
+*/
+void idBrushBSPNode::RemoveFlagRecurseFlood(int flag) {
+	idList<idBrushBSPNode*> stack;
+	stack.SetGranularity(4096);
+	stack.Append(this);
+
+	while (stack.Num() > 0) {
+		idBrushBSPNode* node = stack[stack.Num() - 1];
+		stack.SetNum(stack.Num() - 1);
+
+		node->RemoveFlag(flag);
+
+		if (!node->children[0] && !node->children[1]) {
+			// leaf node — do flood through portals
+			int s;
+			for (idBrushBSPPortal* p = node->GetPortals(); p; p = p->Next(s)) {
+				s = (p->GetNode(1) == node);
+				if (p->GetNode(!s)->GetFlags() & flag) {
+					stack.Append(p->GetNode(!s));
+				}
+			}
+		}
+		else {
+			if (node->children[0]) {
+				stack.Append(node->children[0]);
+			}
+			if (node->children[1]) {
+				stack.Append(node->children[1]);
+			}
+		}
+	}
 }
 
 /*
@@ -473,6 +568,7 @@ void idBrushBSPNode::RemoveFlagRecurse( int flag ) {
 idBrushBSPNode::RemoveFlagRecurseFlood
 ============
 */
+/*
 void idBrushBSPNode::RemoveFlagRecurseFlood( int flag ) {
 	RemoveFlag( flag );
 	if ( !children[0] && !children[1] ) {
@@ -486,7 +582,7 @@ void idBrushBSPNode::RemoveFlagRecurseFlood( int flag ) {
 			children[1]->RemoveFlagRecurseFlood( flag );
 		}
 	}
-}
+}*/
 
 
 //===============================================================
@@ -995,8 +1091,12 @@ void idBrushBSP::Build( idBrushList brushList, int skipContents,
 	}
 
 	BuildGrid_r( gridCells, root );
+	common->Printf("\n  grid cells: %d, bsp_gridsize: %d\n", gridCells.Num(), BSP_GRID_SIZE);
+	common->Printf("  tree bounds: (%f %f %f) to (%f %f %f)\n",
+		treeBounds[0].x, treeBounds[0].y, treeBounds[0].z,
+		treeBounds[1].x, treeBounds[1].y, treeBounds[1].z);
 
-	common->Printf( "\r%6d grid cells\n", gridCells.Num() );
+	common->Printf("\r%6d grid cells\n", gridCells.Num());
 
 #ifdef OUPUT_BSP_STATS_PER_GRID_CELL
 	for ( i = 0; i < gridCells.Num(); i++ ) {
@@ -1006,6 +1106,11 @@ void idBrushBSP::Build( idBrushList brushList, int skipContents,
 	common->Printf( "\r%6d %%", 0 );
 	for ( i = 0; i < gridCells.Num(); i++ ) {
 		DisplayRealTimeString( "\r%6d", i * 100 / gridCells.Num() );
+		// update visual progress bar (BSP phase spans 0.10 to 0.50)
+		if (gridCells.Num() > 1) {
+			float bspProgress = 0.10f + 0.40f * ((float)i / gridCells.Num());
+			commonLocal.LoadPacifierBinarizeProgress(bspProgress);
+		}
 		ProcessGridCell( gridCells[i], skipContents );
 	}
 	common->Printf( "\r%6d %%\n", 100 );
@@ -1424,8 +1529,59 @@ void idBrushBSP::LeakFile( const idStr &fileName ) {
 /*
 ============
 idBrushBSP::FloodThroughPortals_r
+non-recursive, iterative version
 ============
 */
+void idBrushBSP::FloodThroughPortals_r(idBrushBSPNode* node, int contents, int depth) {
+	struct floodItem_t {
+		idBrushBSPNode* node;
+		int depth;
+	};
+
+	idList<floodItem_t> stack;
+	stack.SetGranularity(4096);
+
+	floodItem_t first;
+	first.node = node;
+	first.depth = depth;
+	stack.Append(first);
+
+	while (stack.Num() > 0) {
+		floodItem_t item = stack[stack.Num() - 1];
+		stack.SetNum(stack.Num() - 1);
+
+		if (!item.node) {
+			continue;
+		}
+		if (item.node->occupied) {
+			continue;
+		}
+
+		item.node->occupied = item.depth;
+
+		for (idBrushBSPPortal* p = item.node->portals; p; ) {
+			int s = (p->nodes[1] == item.node);
+			idBrushBSPPortal* nextPortal = p->next[s];
+
+			idBrushBSPNode* other = p->nodes[!s];
+			if (other && !other->occupied && !(other->contents & contents)) {
+				floodItem_t next;
+				next.node = other;
+				next.depth = item.depth + 1;
+				stack.Append(next);
+			}
+
+			p = nextPortal;
+		}
+	}
+}
+
+/*
+============
+idBrushBSP::FloodThroughPortals_r
+============
+*/
+/*
 void idBrushBSP::FloodThroughPortals_r( idBrushBSPNode *node, int contents, int depth ) {
 	idBrushBSPPortal *p;
 	int s;
@@ -1461,7 +1617,7 @@ void idBrushBSP::FloodThroughPortals_r( idBrushBSPNode *node, int contents, int 
 		FloodThroughPortals_r( p->nodes[!s], contents, depth+1 );
 	}
 }
-
+*/
 /*
 ============
 idBrushBSP::FloodFromOrigin
@@ -1843,6 +1999,26 @@ void idBrushBSP::PruneMergedTree_r( idBrushBSPNode *node ) {
 		return;
 	}
 
+	// motorsep 02-01-2023; AAS fix from TDM
+	// stgatilov #5212: moved here from explicit call to RemoveFlagRecurse in idAASBuild::MergeLeafNodes
+	node->RemoveFlag(NODE_DONE);
+
+	// stgatilov #5212: replace references to zombies with references to merged nodes
+	for (int i = 0; i < 2; i++) {
+		idBrushBSPNode*& child = node->children[i];
+		if (child && (child->GetFlags() & NODE_ZOMBIE)) {
+			idBrushBSPNode* x;
+			// find out where this chain ends
+			for (x = child; x->GetFlags() & NODE_ZOMBIE; x = x->parent);
+			idBrushBSPNode* head = x;
+			// path compression: direct every node in chain directly fo the head
+			for (x = child; x != head; x = x->parent)
+				x->parent = head;
+			// replace child link with the merged node
+			child = head;
+		}
+	}
+
 	PruneMergedTree_r( node->children[0] );
 	PruneMergedTree_r( node->children[1] );
 
@@ -1903,7 +2079,8 @@ idBrushBSP::TryMergeLeafNodes
   NOTE: multiple brances of the BSP tree might point to the same leaf node after merging
 ============
 */
-bool idBrushBSP::TryMergeLeafNodes( idBrushBSPPortal *portal, int side ) {
+//bool idBrushBSP::TryMergeLeafNodes( idBrushBSPPortal *portal, int side ) {
+bool idBrushBSP::TryMergeLeafNodes(idBrushBSPPortal * portal, int side, idList<idBrushBSPNode*> &zombieNodes) { // motorsep 02-01-2023; AAS fix from TDM
 	int i, j, k, s1, s2, s;
 	idBrushBSPNode *nodes[2], *node1, *node2;
 	idBrushBSPPortal *p1, *p2, *p, *nextp;
@@ -1982,12 +2159,89 @@ bool idBrushBSP::TryMergeLeafNodes( idBrushBSPPortal *portal, int side ) {
 		bounds += b;
 	}
 
+	/*
 	// replace every reference to node2 by a reference to node1
 	UpdateTreeAfterMerge_r( root, bounds, node2, node1 );
 
+	delete node2; */
+
+	// motorsep 02-01-2023; AAS fix from TDM
+#if 0
+	// replace every reference to node2 by a reference to node1
+	// stgatilov: this is unreliable since it uses numeric pruning to find references!
+	// sometimes a reference go unnoticed, which result in crash from accessing deleted memory later
+	UpdateTreeAfterMerge_r(root, bounds, node2, node1);
 	delete node2;
+#else
+	// stgatilov #5212: mark node as "zombie" for now, and remember its parent
+	// whenever we get into this node in BSP tree traversal, we'll redirect to the parent
+	node2->~idBrushBSPNode();
+	memset(node2, 0, sizeof(*node2));
+	node2->flags = NODE_ZOMBIE;
+	node2->parent = node1;
+	zombieNodes.Append(node2);
+#endif
 
 	return true;
+}
+
+/*
+============
+idBrushBSP::MeltFlood_r
+  flood through portals touching the bounds to find all vertices that might be inside the bounds
+  non-recursive, iterative version
+============
+*/
+void idBrushBSP::MeltFlood_r(idBrushBSPNode* node, int skipContents, idBounds& bounds, idVectorSet<idVec3, 3>& vertexList) {
+	idList<idBrushBSPNode*> stack;
+	stack.SetGranularity(4096);
+	stack.Append(node);
+	node->SetFlag(NODE_VISITED);
+
+	while (stack.Num() > 0) {
+		idBrushBSPNode* current = stack[stack.Num() - 1];
+		stack.SetNum(stack.Num() - 1);
+
+		int s1;
+		idBrushBSPPortal* p1;
+		const idWinding* w;
+		idBounds b;
+
+		// collect vertices from portals
+		for (p1 = current->GetPortals(); p1; p1 = p1->Next(s1)) {
+			s1 = (p1->GetNode(1) == current);
+
+			if (p1->GetNode(!s1)->GetFlags() & NODE_VISITED) {
+				continue;
+			}
+			w = p1->GetWinding();
+			for (int i = 0; i < w->GetNumPoints(); i++) {
+				if (bounds.ContainsPoint((*w)[i].ToVec3())) {
+					vertexList.FindVector((*w)[i].ToVec3(), VERTEX_MELT_EPSILON);
+				}
+			}
+		}
+
+		// flood to neighbors
+		for (p1 = current->GetPortals(); p1; p1 = p1->Next(s1)) {
+			s1 = (p1->GetNode(1) == current);
+
+			if (p1->GetNode(!s1)->GetFlags() & NODE_VISITED) {
+				continue;
+			}
+			if (p1->GetNode(!s1)->GetContents() & skipContents) {
+				continue;
+			}
+			w = p1->GetWinding();
+			w->GetBounds(b);
+			if (!bounds.IntersectsBounds(b)) {
+				continue;
+			}
+
+			p1->GetNode(!s1)->SetFlag(NODE_VISITED);
+			stack.Append(p1->GetNode(!s1));
+		}
+	}
 }
 
 /*
@@ -1997,7 +2251,7 @@ idBrushBSP::MeltFloor_r
   flood through portals touching the bounds to find all vertices that might be inside the bounds
 ============
 */
-void idBrushBSP::MeltFlood_r( idBrushBSPNode *node, int skipContents, idBounds &bounds, idVectorSet<idVec3,3> &vertexList ) {
+/* void idBrushBSP::MeltFlood_r(idBrushBSPNode* node, int skipContents, idBounds& bounds, idVectorSet<idVec3, 3>& vertexList) {
 	int s1, i;
 	idBrushBSPPortal *p1;
 	idBounds b;
@@ -2041,7 +2295,14 @@ void idBrushBSP::MeltFlood_r( idBrushBSPNode *node, int skipContents, idBounds &
 
 		MeltFlood_r( p1->GetNode( !s1 ), skipContents, bounds, vertexList );
 	}
-}
+} */
+
+// motorsep 02-03-2023; AAS fix from TDM
+static idCVar dmap_fasterAasMeltPortals(
+	"dmap_fasterAasMeltPortals", "1", CVAR_BOOL | CVAR_SYSTEM,
+	"Use hash table of small size in idBrushBSP::MeltLeafNodePortals during AAS compilation. "
+	"This is performance improvement in TDM 2.10."
+);
 
 /*
 ============
@@ -2066,9 +2327,17 @@ void idBrushBSP::MeltLeafNodePortals( idBrushBSPNode *node, int skipContents, id
 		if ( p1->GetNode( !s1 )->GetFlags() & NODE_DONE ) {
 			continue;
 		}
+		// motorsep 02-03-2023; AAS fix from TDM
+		//note: number of hash cells is 4*4*4 = 64 !
+		int VERTEX_MELT_HASH_SIZE = 4;
+		if (!dmap_fasterAasMeltPortals.GetBool())
+			VERTEX_MELT_HASH_SIZE = 64;	//32 x 32 x 32 = 65536 cells (256 KB to clear per portal!)
 
 		p1->winding->GetBounds( bounds );
 		bounds.ExpandSelf( 2 * VERTEX_MELT_HASH_SIZE * VERTEX_MELT_EPSILON );
+		// motorsep 02-03-2023; AAS fix from TDM
+		//stgatilov: only the first Init allocates memory
+		//all the rest should reuse old memory buffers, only clearing their contents
 		vertexList.Init( bounds[0], bounds[1], VERTEX_MELT_HASH_SIZE, 128 );
 
 		// get all vertices to be considered

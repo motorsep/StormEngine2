@@ -1,0 +1,30 @@
+/*
+===========================================================================
+
+G-Buffer normal output during depth pre-pass.
+Encodes view-space normal XY into RG, derives Z at read time.
+
+===========================================================================
+*/
+
+#include "global.inc"
+
+struct PS_IN {
+	float4 position  : VPOS;
+	float3 texcoord0 : TEXCOORD0;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float3 N = normalize( fragment.texcoord0 );
+
+	// Encode view-space normal: XY into [0,1], store Z sign in blue
+	// Z can be reconstructed: Z = sqrt(1 - X*X - Y*Y) * sign
+	result.color.x = N.x * 0.5 + 0.5;
+	result.color.y = N.y * 0.5 + 0.5;
+	result.color.z = N.z * 0.5 + 0.5;
+	result.color.w = 1.0;
+}

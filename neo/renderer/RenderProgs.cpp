@@ -132,6 +132,14 @@ void idRenderProgManager::Init()
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_POINT_SKINNED, "interactionSM_point_skinned.vfp" },
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL, "interactionSM_parallel.vfp" },
 		{ BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED, "interactionSM_parallel_skinned.vfp" },
+		// G-Buffer
+        { BUILTIN_GBUFFER, "gbuffer.vfp" },
+        { BUILTIN_GBUFFER_SKINNED, "gbuffer_skinned.vfp" },
+        { BUILTIN_SHOW_GBUFFER, "showGbuffer.vfp" },
+		// SSAO
+        { BUILTIN_SSAO, "ssao.vfp" },
+        { BUILTIN_SSAO_BLUR, "ssaoBlur.vfp" },
+		{ BUILTIN_SSAO_APPLY, "ssaoApply.vfp" },
 	};
 	int numBuiltins = sizeof( builtins ) / sizeof( builtins[0] );
 	vertexShaders.SetNum( numBuiltins );
@@ -171,6 +179,8 @@ void idRenderProgManager::Init()
 	vertexShaders[builtinShaders[BUILTIN_INTERACTION_SHADOW_MAPPING_SPOT_SKINNED]].usesJoints = true;
 	vertexShaders[builtinShaders[BUILTIN_INTERACTION_SHADOW_MAPPING_POINT_SKINNED]].usesJoints = true;
 	vertexShaders[builtinShaders[BUILTIN_INTERACTION_SHADOW_MAPPING_PARALLEL_SKINNED]].usesJoints = true;
+	// G-Buffer
+	vertexShaders[builtinShaders[BUILTIN_GBUFFER_SKINNED]].usesJoints = true;
 	
 	cmdSystem->AddCommand( "reloadShaders", R_ReloadShaders, CMD_FL_RENDERER, "reloads shaders" );
 }

@@ -54,11 +54,61 @@ extern idCVar r_useHightQualitySky;
 
 backEndState_t	backEnd;
 
+// G-Buffer 
+static bool s_useGbuffer = false;
+
 // foresthale 2014-04-08: r_glow
 static void RB_PostProcessHDRGlowProcess(int textureSizes[4][6]);
 static void RB_ShadowMapPass( const drawSurf_t* drawSurfs, const viewLight_t* vLight, int side );
 
 static void MatrixOrthogonalProjectionRH( float m[16], float left, float right, float bottom, float top, float zNear, float zFar );
+
+// Invert a 4x4 matrix. Returns false if singular.
+bool R_MatrixInverse(const float in[16], float out[16])
+{
+	float inv[16], det;
+	int i;
+
+	inv[0] = in[5] * in[10] * in[15] - in[5] * in[11] * in[14] - in[9] * in[6] * in[15]
+		+ in[9] * in[7] * in[14] + in[13] * in[6] * in[11] - in[13] * in[7] * in[10];
+	inv[4] = -in[4] * in[10] * in[15] + in[4] * in[11] * in[14] + in[8] * in[6] * in[15]
+		- in[8] * in[7] * in[14] - in[12] * in[6] * in[11] + in[12] * in[7] * in[10];
+	inv[8] = in[4] * in[9] * in[15] - in[4] * in[11] * in[13] - in[8] * in[5] * in[15]
+		+ in[8] * in[7] * in[13] + in[12] * in[5] * in[11] - in[12] * in[7] * in[9];
+	inv[12] = -in[4] * in[9] * in[14] + in[4] * in[10] * in[13] + in[8] * in[5] * in[14]
+		- in[8] * in[6] * in[13] - in[12] * in[5] * in[10] + in[12] * in[6] * in[9];
+	inv[1] = -in[1] * in[10] * in[15] + in[1] * in[11] * in[14] + in[9] * in[2] * in[15]
+		- in[9] * in[3] * in[14] - in[13] * in[2] * in[11] + in[13] * in[3] * in[10];
+	inv[5] = in[0] * in[10] * in[15] - in[0] * in[11] * in[14] - in[8] * in[2] * in[15]
+		+ in[8] * in[3] * in[14] + in[12] * in[2] * in[11] - in[12] * in[3] * in[10];
+	inv[9] = -in[0] * in[9] * in[15] + in[0] * in[11] * in[13] + in[8] * in[1] * in[15]
+		- in[8] * in[3] * in[13] - in[12] * in[1] * in[11] + in[12] * in[3] * in[9];
+	inv[13] = in[0] * in[9] * in[14] - in[0] * in[10] * in[13] - in[8] * in[1] * in[14]
+		+ in[8] * in[2] * in[13] + in[12] * in[1] * in[10] - in[12] * in[2] * in[9];
+	inv[2] = in[1] * in[6] * in[15] - in[1] * in[7] * in[14] - in[5] * in[2] * in[15]
+		+ in[5] * in[3] * in[14] + in[13] * in[2] * in[7] - in[13] * in[3] * in[6];
+	inv[6] = -in[0] * in[6] * in[15] + in[0] * in[7] * in[14] + in[4] * in[2] * in[15]
+		- in[4] * in[3] * in[14] - in[12] * in[2] * in[7] + in[12] * in[3] * in[6];
+	inv[10] = in[0] * in[5] * in[15] - in[0] * in[7] * in[13] - in[4] * in[1] * in[15]
+		+ in[4] * in[3] * in[13] + in[12] * in[1] * in[7] - in[12] * in[3] * in[5];
+	inv[14] = -in[0] * in[5] * in[14] + in[0] * in[6] * in[13] + in[4] * in[1] * in[14]
+		- in[4] * in[2] * in[13] - in[12] * in[1] * in[6] + in[12] * in[2] * in[5];
+	inv[3] = -in[1] * in[6] * in[11] + in[1] * in[7] * in[10] + in[5] * in[2] * in[11]
+		- in[5] * in[3] * in[10] - in[9] * in[2] * in[7] + in[9] * in[3] * in[6];
+	inv[7] = in[0] * in[6] * in[11] - in[0] * in[7] * in[10] - in[4] * in[2] * in[11]
+		+ in[4] * in[3] * in[10] + in[8] * in[2] * in[7] - in[8] * in[3] * in[6];
+	inv[11] = -in[0] * in[5] * in[11] + in[0] * in[7] * in[9] + in[4] * in[1] * in[11]
+		- in[4] * in[3] * in[9] - in[8] * in[1] * in[7] + in[8] * in[3] * in[5];
+	inv[15] = in[0] * in[5] * in[10] - in[0] * in[6] * in[9] - in[4] * in[1] * in[10]
+		+ in[4] * in[2] * in[9] + in[8] * in[1] * in[6] - in[8] * in[2] * in[5];
+
+	det = in[0] * inv[0] + in[1] * inv[4] + in[2] * inv[8] + in[3] * inv[12];
+	if (det == 0) return false;
+	det = 1.0f / det;
+	for (i = 0; i < 16; i++)
+		out[i] = inv[i] * det;
+	return true;
+}
 
 /*
 ================
@@ -510,18 +560,19 @@ static void RB_PrepareStageTexturing( const shaderStage_t* pStage,  const drawSu
 		// I am keeping this CG shader parameter switching code as an example for future generations :)
 		float cubemapColorSpace[4];
 		//cubemapColorSpace[0]; // 0.0f - YCoCg ; 1.0f - RGB
-		cubemapColorSpace[1] = 0.0f; // unused
-		cubemapColorSpace[2] = 0.0f; // unused
-		cubemapColorSpace[3] = 0.0f; // unused		
-
+		
 		if( skyboxRGBswap == false ) {
 		//if( !r_useHightQualitySky.GetBool()) {
-			cubemapColorSpace[0] = 0.0f;
+			cubemapColorSpace[0] = 0.0f; // 0.0f; default
 		}
 		if( skyboxRGBswap == true ) {
 		//if(r_useHightQualitySky.GetBool()) {
-			cubemapColorSpace[0] = 1.0f;
+			cubemapColorSpace[0] = 1.0f; // 1.0f default
 		}
+
+		cubemapColorSpace[1] = 0.0f; // unused
+		cubemapColorSpace[2] = 0.0f; // unused
+		cubemapColorSpace[3] = 0.0f; // unused	
 
 		SetFragmentParm( RENDERPARM_CUBEMAPCOLORSPACE, cubemapColorSpace ); // rpCubemapColorSpace
 		// motorsep ends
@@ -767,13 +818,32 @@ static void RB_FillDepthBufferGeneric( const drawSurf_t* const* drawSurfs, int n
 			continue;
 		}
 		
-		// change the matrix if needed
-		if( drawSurf->space != backEnd.currentSpace )
-		{
-			RB_SetMVP( drawSurf->space->mvp );
+		// Exclude view weapons and sky/portal sky from SSAO
+		const idMaterial* gbufShader = drawSurf->material;
+		const bool surfGbuffer = s_useGbuffer
+			&& !drawSurf->space->weaponDepthHack
+			&& drawSurf->space->modelDepthHack == 0.0f
+			&& !gbufShader->IsPortalSky()
+			&& gbufShader->Texgen() != TG_SKYBOX_CUBE
+			&& gbufShader->Texgen() != TG_WOBBLESKY_CUBE
+			&& gbufShader->Texgen() != TG_SCRIPTSKY_CUBE
+			&& gbufShader->GetSort() != SS_PORTAL_SKY;
+
+		// change the matrix if needed / G-Buffer
+		if (drawSurf->space != backEnd.currentSpace)
+        {
+	        RB_SetMVP(drawSurf->space->mvp);
 			
-			backEnd.currentSpace = drawSurf->space;
-		}
+             // G-Buffer: set model-view matrix for normal transformation
+            if( surfGbuffer )
+            {
+                 float modelViewMatrixTranspose[16];
+                 R_MatrixTranspose(drawSurf->space->modelViewMatrix, modelViewMatrixTranspose);
+	             SetVertexParms(RENDERPARM_MODELVIEWMATRIX_X, modelViewMatrixTranspose, 4);
+            }
+	        backEnd.currentSpace = drawSurf->space;
+        }
+
 		
 		uint64 surfGLState = 0;
 		
@@ -916,15 +986,25 @@ static void RB_FillDepthBufferGeneric( const drawSurf_t* const* drawSurfs, int n
 			}
 			else
 			{
-				if( drawSurf->jointCache )
-				{
-					renderProgManager.BindShader_DepthSkinned();
+				if (drawSurf->jointCache)
+	            {
+		            if( surfGbuffer )
+			                    renderProgManager.BindShader_GBufferSkinned();
+					else
+			                    renderProgManager.BindShader_DepthSkinned();
 				}
 				else
 				{
-					renderProgManager.BindShader_Depth();
+					if( surfGbuffer )
+					            renderProgManager.BindShader_GBuffer();
+					else
+					            renderProgManager.BindShader_Depth();
 				}
-				GL_State( surfGLState | GLS_ALPHAMASK );
+				//GL_State( surfGLState | GLS_ALPHAMASK );
+				if (s_useGbuffer && !surfGbuffer)
+					GL_State(surfGLState | GLS_ALPHAMASK | GLS_COLORMASK);
+				else
+					GL_State(surfGLState | GLS_ALPHAMASK);
 			}
 			
 			// must render with less-equal for Z-Cull to work properly
@@ -975,7 +1055,28 @@ static void RB_FillDepthBufferFast( drawSurf_t** drawSurfs, int numDrawSurfs )
 	
 	renderLog.OpenMainBlock( MRB_FILL_DEPTH_BUFFER );
 	renderLog.OpenBlock( "RB_FillDepthBufferFast" );
+
+	// G-Buffer: bind the gbuffer FBO so we write normals during depth pre-pass
+    const bool useGbuffer = r_useGbuffer.GetBool() && r_useHDR.GetBool() && !(com_editors);
+    if( useGbuffer )
+    {
+        // Check if normal image needs resize
+        if( globalImages->gbufferNormalImage->GetUploadWidth() != glConfig.nativeScreenWidth
+         || globalImages->gbufferNormalImage->GetUploadHeight() != glConfig.nativeScreenHeight )
+        {
+	            globalImages->gbufferNormalImage->Resize(glConfig.nativeScreenWidth, glConfig.nativeScreenHeight);
+	            globalFramebuffers->gbufferFramebuffer->PurgeFramebuffer();
+        }
+	        globalFramebuffers->gbufferFramebuffer->Bind();
+        // Clear normal buffer to neutral (0.5, 0.5, 0.5 = zero normal encoded)
+	        GL_State(GLS_DEFAULT);
+	        qglClearColor(0.5f, 0.5f, 0.5f, 0.0f);
+	        qglClear(GL_COLOR_BUFFER_BIT);
+			qglClearColor(0.0f, 0.0f, 0.0f, 0.0f);  // <-- restore!
+    }
 	
+	s_useGbuffer = useGbuffer;
+
 	GL_StartDepthPass( backEnd.viewDef->scissor );
 	
 	// force MVP change on first surface
@@ -1031,22 +1132,72 @@ static void RB_FillDepthBufferFast( drawSurf_t** drawSurfs, int numDrawSurfs )
 			backEnd.currentSpace = surf->space;
 		}
 		
+		// G-Buffer: set model-view matrix for normal transformation
+	    // Skip weapon/depth-hacked surfaces — they cause SSAO halos
+		// Also skip sky and portal sky
+        const bool surfUseGbuffer = useGbuffer
+			&& !surf->space->weaponDepthHack
+			&& surf->space->modelDepthHack == 0.0f
+			&& !shader->IsPortalSky()
+			&& shader->Texgen() != TG_SKYBOX_CUBE
+			&& shader->Texgen() != TG_WOBBLESKY_CUBE
+			&& shader->Texgen() != TG_SCRIPTSKY_CUBE
+			&& shader->GetSort() != SS_PORTAL_SKY;
+
+        if( surfUseGbuffer )
+        {
+             float modelViewMatrixTranspose[16];
+             R_MatrixTranspose(surf->space->modelViewMatrix, modelViewMatrixTranspose);
+             SetVertexParms(RENDERPARM_MODELVIEWMATRIX_X, modelViewMatrixTranspose, 4);
+        }
+
 		renderLog.OpenBlock( shader->GetName() );
 		
-		if( surf->jointCache )
-		{
-			renderProgManager.BindShader_DepthSkinned();
-		}
-		else
-		{
-			renderProgManager.BindShader_Depth();
-		}
+		if (surf->jointCache)
+        {
+            if( surfUseGbuffer )
+            {
+		                 renderProgManager.BindShader_GBufferSkinned();
+            }
+            else
+            {
+		                 renderProgManager.BindShader_DepthSkinned();
+            }
+        }
+        else
+        {
+            if( surfUseGbuffer )
+            {
+		                 renderProgManager.BindShader_GBuffer();
+            }
+            else
+            {
+		                 renderProgManager.BindShader_Depth();
+            }
+        }
+
 		
 		// must render with less-equal for Z-Cull to work properly
 		assert( ( GL_GetCurrentState() & GLS_DEPTHFUNC_BITS ) == GLS_DEPTHFUNC_LESS );
 		
 		// draw it solid
-		RB_DrawElementsWithCounters( surf );
+		//RB_DrawElementsWithCounters( surf );
+		
+		// Mask color writes for non-gbuffer surfaces so the depth shader
+		// doesn't write black into the normal buffer while gbuffer FBO is bound
+		if (useGbuffer && !surfUseGbuffer)
+		{
+			GL_State(GLS_DEPTHFUNC_LESS | GLS_COLORMASK | GLS_ALPHAMASK);
+		}
+
+		// draw it solid
+		RB_DrawElementsWithCounters(surf);
+
+		// Restore color writes
+		if (useGbuffer && !surfUseGbuffer)
+		{
+			GL_State(GLS_DEPTHFUNC_LESS);
+		}
 		
 		renderLog.CloseBlock();
 	}
@@ -1059,6 +1210,29 @@ static void RB_FillDepthBufferFast( drawSurf_t** drawSurfs, int numDrawSurfs )
 	
 	// Allow platform specific data to be collected after the depth pass.
 	GL_FinishDepthPass();
+
+	// G-Buffer: switch back to viewFramebuffer for the rest of rendering.
+    // The depth-stencil is shared, so all depth values written persist.
+    if( useGbuffer )
+    {
+		if (r_useHDR.GetBool() && !(com_editors) && backEnd.viewDef->viewEntitys)
+		{
+			globalFramebuffers->viewFramebuffer->Bind();
+		}
+		else
+		{
+			globalFramebuffers->BindSystemFramebuffer();
+		}
+
+		// Clear the color buffer — the interaction pass adds light 
+		// contributions additively, so it must start from black.
+		// Without the gbuffer, the depth shader's black output did this 
+		// implicitly. With the gbuffer FBO bound, the color buffer was 
+		// never touched, so we must clear it explicitly.
+		qglClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		qglClear(GL_COLOR_BUFFER_BIT);
+    }
+
 	
 	renderLog.CloseBlock();
 	renderLog.CloseMainBlock();
@@ -3945,6 +4119,199 @@ static void RB_FogAllLights(bool glowStage)
 	renderLog.CloseMainBlock();
 }
 
+//===========================================================================
+// RB_SSAO() FUNCTION — FULL RESOLUTION VERSION
+//===========================================================================
+
+static void RB_SSAO()
+{
+    if( !r_ssao.GetBool() || !r_useGbuffer.GetBool() || !backEnd.viewDef->viewEntitys )
+        return;
+
+	/*static int debugCounter = 0;
+	if ((debugCounter++ % 300) == 0) {
+		common->Printf("SSAO: ssao=%dx%d depth=%dx%d gbufN=%dx%d viewport=%d,%d %dx%d\n",
+			globalImages->ssaoImage->GetUploadWidth(),
+			globalImages->ssaoImage->GetUploadHeight(),
+			globalImages->viewFramebufferDepthImage->GetUploadWidth(),
+			globalImages->viewFramebufferDepthImage->GetUploadHeight(),
+			globalImages->gbufferNormalImage->GetUploadWidth(),
+			globalImages->gbufferNormalImage->GetUploadHeight(),
+			backEnd.viewDef->viewport.x1,
+			backEnd.viewDef->viewport.y1,
+			backEnd.viewDef->viewport.GetWidth(),
+			backEnd.viewDef->viewport.GetHeight());
+	}*/
+
+    renderLog.OpenBlock("RB_SSAO");
+
+    const idScreenRect & viewport = backEnd.viewDef->viewport;
+    int width = viewport.GetWidth();
+    int height = viewport.GetHeight();
+
+	/*common->Printf("SSAO resize check: width=%d height=%d current=%dx%d\n",
+		width, height,
+		globalImages->ssaoImage->GetUploadWidth(),
+		globalImages->ssaoImage->GetUploadHeight());*/
+
+    // Resize SSAO images if needed (now at FULL resolution)
+    if( globalImages->ssaoImage->GetUploadWidth() != width
+     || globalImages->ssaoImage->GetUploadHeight() != height )
+    {
+        globalImages->ssaoImage->Resize(width, height);
+        globalImages->ssaoBlurTempImage->Resize(width, height);
+        globalFramebuffers->ssaoFramebuffer->PurgeFramebuffer();
+        globalFramebuffers->ssaoBlurTempFramebuffer->PurgeFramebuffer();
+    }
+
+    // Compute inverse projection matrix (R_MatrixFullInverse is in GLMatrix.h/cpp)
+    float invProjectionMatrix[16];
+    R_MatrixFullInverse(backEnd.viewDef->projectionMatrix, invProjectionMatrix);
+
+    // Transpose for shader upload (same convention as all other matrices)
+    float invProjTranspose[16];
+    R_MatrixTranspose(invProjectionMatrix, invProjTranspose);
+
+    // Also need the regular projection matrix for the AO shader
+    float projMatrixTranspose[16];
+    R_MatrixTranspose(backEnd.viewDef->projectionMatrix, projMatrixTranspose);
+
+    // Common state
+    GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+    GL_Cull(CT_TWO_SIDED);
+
+	float aoParm[4];
+	aoParm[0] = r_ssaoRadius.GetFloat();      // radius in Doom units
+	aoParm[1] = r_ssaoIntensity.GetFloat();    // intensity
+	aoParm[2] = r_ssaoBias.GetFloat();         // bias
+	aoParm[3] = r_ssaoProjScale.GetFloat();                        // projScale
+	SetFragmentParm(RENDERPARM_DIFFUSEMODIFIER, aoParm);
+
+    // ===================================================
+    // PASS 1: Compute AO at full resolution
+    // ===================================================
+    globalFramebuffers->ssaoFramebuffer->Bind();
+    GL_Viewport(0, 0, width, height);
+    GL_Scissor(0, 0, width, height);
+
+    renderProgManager.BindShader_SSAO();
+
+    // Inverse projection matrix via rpModelMatrix slots
+    SetVertexParms(RENDERPARM_MODELMATRIX_X, invProjTranspose, 4);
+
+    // rpScreenCorrectionFactor.xy = 1/width, 1/height (pixel to UV conversion)
+    float screenParm[4];
+    screenParm[0] = 1.0f / width;
+    screenParm[1] = 1.0f / height;
+    screenParm[2] = (float)width;
+    screenParm[3] = (float)height;
+    SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenParm);
+
+    // Bind textures: samp0 = normals, samp1 = depth
+    GL_SelectTexture(0);
+    globalImages->gbufferNormalImage->Bind();
+
+    GL_SelectTexture(1);
+    globalImages->viewFramebufferDepthImage->Bind();
+
+    RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+
+    // ===================================================
+    // PASS 2: Horizontal blur
+    // ===================================================
+    globalFramebuffers->ssaoBlurTempFramebuffer->Bind();
+    GL_Viewport(0, 0, width, height);
+    GL_Scissor(0, 0, width, height);
+
+    renderProgManager.BindShader_SSAOBlur();
+
+    // Same inverse projection + screen correction
+    SetVertexParms(RENDERPARM_MODELMATRIX_X, invProjTranspose, 4);
+    SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenParm);
+
+    // Blur direction: horizontal (1, 0)
+    // Use rpJitterTexScale if available, otherwise rpSpecularModifier
+    float dirParm[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+    SetFragmentParm(RENDERPARM_JITTERTEXSCALE, dirParm);
+    // OR: SetFragmentParm( RENDERPARM_SPECULARMODIFIER, dirParm );
+
+    // samp0 = normals, samp1 = depth, samp2 = AO source
+    GL_SelectTexture(0);
+    globalImages->gbufferNormalImage->Bind();
+
+    GL_SelectTexture(1);
+    globalImages->viewFramebufferDepthImage->Bind();
+
+	GL_SelectTexture(2);
+    globalImages->ssaoImage->Bind();
+
+    RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+
+    // ===================================================
+    // PASS 3: Vertical blur
+    // ===================================================
+    globalFramebuffers->ssaoFramebuffer->Bind();
+    GL_Viewport(0, 0, width, height);
+    GL_Scissor(0, 0, width, height);
+
+    // Direction: vertical (0, 1)
+    dirParm[0] = 0.0f;
+    dirParm[1] = 1.0f;
+    SetFragmentParm(RENDERPARM_JITTERTEXSCALE, dirParm);
+    // OR: SetFragmentParm( RENDERPARM_SPECULARMODIFIER, dirParm );
+
+    GL_SelectTexture(2);
+    globalImages->ssaoBlurTempImage->Bind();
+
+    // samp0 (normals) and samp1 (depth) still bound
+
+    RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+
+    // ===================================================
+    // PASS 4: Apply AO to scene
+    // ===================================================
+    if( r_useHDR.GetBool() && !( com_editors ) )
+        globalFramebuffers->viewFramebuffer->Bind();
+    else
+        globalFramebuffers->BindSystemFramebuffer();
+
+    GL_Viewport(viewport.x1, viewport.y1, width, height);
+    GL_Scissor(viewport.x1, viewport.y1, width, height);
+
+    if( r_showSSAO.GetBool() )
+    {
+        GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+		//GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+        renderProgManager.BindShader_SSAOApply();
+        GL_SelectTexture(0);
+        globalImages->ssaoImage->Bind();
+        RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+    }
+    else
+    {
+        //GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHFUNC_ALWAYS);
+		GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+        renderProgManager.BindShader_SSAOApply();
+        GL_SelectTexture(0);
+        globalImages->ssaoImage->Bind();
+        RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+    }
+
+    // Restore state
+    GL_State(GLS_DEFAULT);
+    GL_Cull(CT_FRONT_SIDED);
+    GL_SelectTexture(2);
+    globalImages->BindNull();
+    GL_SelectTexture(1);
+    globalImages->BindNull();
+    GL_SelectTexture(0);
+
+    renderLog.CloseBlock();
+}
+
+
+
+
 /*
 =========================================================================================================
 
@@ -4058,7 +4425,7 @@ void RB_DrawViewInternal( const viewDef_t* viewDef, const int stereoEye, const b
 	// fill the depth buffer and clear color buffer to black except on subviews
 	//-------------------------------------------------
 	RB_FillDepthBufferFast( drawSurfs, numDrawSurfs );
-	
+		
 	// ---------- ink begins -----------------------
 	const idScreenRect& viewport = backEnd.viewDef->viewport;
 	globalImages->currentDepthImage->CopyDepthbuffer( viewport.x1, viewport.y1, viewport.GetWidth(), viewport.GetHeight() );
@@ -4134,6 +4501,9 @@ void RB_DrawViewInternal( const viewDef_t* viewDef, const int stereoEye, const b
 	// so they are properly dimmed down
 	//-------------------------------------------------
 	RB_FogAllLights( false );
+
+	// SSAO: compute and apply ambient occlusion after all opaque lighting + fog
+	RB_SSAO();
 
 	// foresthale 2014-04-25: draw the transparent surfaces after fog
 	// now that fog has been drawn, we can draw the transparent surfaces
@@ -4584,6 +4954,27 @@ void RB_PostProcess( const void* data )
 	// Draw
 	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
 	
+	// G-Buffer debug visualization
+    if( r_showGbuffer.GetBool() && r_useGbuffer.GetBool() )
+    {
+         GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+         GL_Cull(CT_TWO_SIDED);
+
+         renderProgManager.BindShader_ShowGBuffer();
+
+         GL_SelectTexture(0);
+         globalImages->gbufferNormalImage->Bind();
+
+         float gbufScreenParm[4];
+         gbufScreenParm[0] = (float)backEnd.viewDef->viewport.GetWidth() / (float)glConfig.nativeScreenWidth;
+         gbufScreenParm[1] = (float)backEnd.viewDef->viewport.GetHeight() / (float)glConfig.nativeScreenHeight;
+         gbufScreenParm[2] = (float)backEnd.viewDef->viewport.x1 / (float)glConfig.nativeScreenWidth;
+         gbufScreenParm[3] = (float)backEnd.viewDef->viewport.y1 / (float)glConfig.nativeScreenHeight;
+         SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, gbufScreenParm);
+
+         RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+    }
+
 	renderLog.CloseBlock();
 }
 

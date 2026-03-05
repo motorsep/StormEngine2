@@ -78,6 +78,8 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - PNG screenshots support
 
+- SSAO
+
 - Soft shadows using PCF hardware shadow mapping
 
 - True 64 bit HDR imaging
@@ -137,16 +139,14 @@ KNOWN ISSUES
 A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) )
 ---------------------------------------------------------------------------------
 - ~~Fix vehicles (savegame crash fix; networking)~~
-- 8-way texture blending using vertex colors with transition masking using height maps
+- 2-way texture blending using vertex colors with transition masking using height maps
 - Equirectangular skybox (in addition to existing 6-image cubemaps)
 - Refine LOD solution (make it a bit more performant; add support for skeletal meshes)
 - Distance culling (not render meshes past certain distance) 
 - Foliage shader with simple wind deformations (including using vertex color to anchor mesh and create gradient rigidity) 
-- Mesh instancing for static meshes (kinda like ISM/HISM in UE4)
-- AAS on meshes (to be able to have navigation built on mesh terrains)
+- ~~AAS on meshes (to be able to have navigation built on mesh terrains)~~
 - Save/load game multithreading (to eliminate hiccups/freezes when performing saving/loading in-game)
 - Improve Lights Editor to allow spawning/deleting/moving/saving lights in-game
-- DoomScript nativization (optional, to improve performance)
 - Reverb zones (XAudio2 supports reverb afaik)
 - Native multiplayer coop
 - Headless dedicated server
@@ -155,7 +155,7 @@ A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) 
 - Replace current texture compressor with fast BC7 compressor
 - Replace all legacy OpenGL 1.x stuff with OpenGL 3.3 (or whatever base standard is nowadays)
 - Parallax-corrected cubemap reflections (with support for equirectangle textures; or better yet reflection capture entities)
-- SSAO
+- ~~SSAO~~
 - Light shafts
 - Good looking and (relatively) fast POM shader with self-shadowing
 - Volumetric fog supporting shadows

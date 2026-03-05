@@ -2651,6 +2651,14 @@ void Cmd_TestId_f( const idCmdArgs& args )
 	gameLocal.mpGame.AddChatLine( idLocalization::GetString( id ), "<nothing>", "<nothing>", "<nothing>" );
 }
 
+/*
+==================
+Cmd_ReloadAAS_f
+==================
+*/
+static void Cmd_ReloadAAS_f(const idCmdArgs& args) {
+	gameLocal.ReloadAAS();
+}
 
 /*
 =================
@@ -2755,7 +2763,9 @@ void idGameLocal::InitConsoleCommands()
 	cmdSystem->AddCommand( "testid",				Cmd_TestId_f,				CMD_FL_GAME | CMD_FL_CHEAT,	"output the string for the specified id." );
 	
 	cmdSystem->AddCommand( "setActorState",			Cmd_SetActorState_f,		CMD_FL_GAME | CMD_FL_CHEAT,	"Manually sets an actors script state", idGameLocal::ArgCompletion_EntityName );
+	cmdSystem->AddCommand("reloadAAS", Cmd_ReloadAAS_f, CMD_FL_GAME | CMD_FL_CHEAT, "reloads AAS files from disk"); // reloadAAS
 }
+
 
 /*
 =================
@@ -2764,5 +2774,5 @@ idGameLocal::ShutdownConsoleCommands
 */
 void idGameLocal::ShutdownConsoleCommands()
 {
-	cmdSystem->RemoveFlaggedCommands( CMD_FL_GAME );
+	cmdSystem->RemoveFlaggedCommands(CMD_FL_GAME);
 }
