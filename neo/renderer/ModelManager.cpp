@@ -378,6 +378,8 @@ idRenderModel* idRenderModelManagerLocal::GetModel( const char* _modelName, bool
 		{
 			if( !model->LoadBinaryModel( file, sourceTimeStamp ) )
 			{
+				common->UpdateLevelLoadPacifier( true );
+				
 				model->InitFromFile( canonical );
 				
 				// RB: default models shouldn't be cached as binary models
@@ -385,7 +387,9 @@ idRenderModel* idRenderModelManagerLocal::GetModel( const char* _modelName, bool
 				{
 					idFileLocal outputFile( fileSystem->OpenFileWrite( generatedFileName, "fs_basepath" ) );
 					idLib::Printf( "Writing %s\n", generatedFileName.c_str() );
+					common->UpdateLevelLoadPacifier( true );
 					model->WriteBinaryModel( outputFile );
+					common->UpdateLevelLoadPacifier( true );
 				}
 				// RB end
 			} /* else {
