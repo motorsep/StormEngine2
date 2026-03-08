@@ -398,6 +398,8 @@ void idFramebufferManager::Init()
 	ssaoFramebuffer->SetColorAttachment(0, globalImages->ssaoImage);
 	ssaoBlurTempFramebuffer = AllocFramebuffer("_ssaoBlurTempFramebuffer");
 	ssaoBlurTempFramebuffer->SetColorAttachment(0, globalImages->ssaoBlurTempImage);
+	ssaoHistoryFramebuffer = AllocFramebuffer("_ssaoHistoryFramebuffer");
+	ssaoHistoryFramebuffer->SetColorAttachment(0, globalImages->ssaoHistoryImage);
 }
 
 /*

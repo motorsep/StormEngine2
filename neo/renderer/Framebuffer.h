@@ -146,6 +146,7 @@ public:
 	// SSAO framebuffers
 	idFramebuffer*		ssaoFramebuffer;
 	idFramebuffer*		ssaoBlurTempFramebuffer;
+	idFramebuffer*		ssaoHistoryFramebuffer;
 
 	idFramebuffer*		AllocFramebuffer( const char* name, int layer = -1 );
 	idFramebuffer*		AllocStandaloneFramebuffer( const char* name );

@@ -678,7 +678,8 @@ void idImageManager::CreateIntrinsicImages()
 	// scratchImage is used for screen wipes/doublevision etc..
 	scratchImage = ImageFromFunction( "_scratch", R_RGBA8Image );
 	scratchImage2 = ImageFromFunction( "_scratch2", R_RGBA8Image );
-	accumImage = ImageFromFunction( "_accum", R_RGBA8Image );
+	//accumImage = ImageFromFunction( "_accum", R_RGBA8Image ); // original line, causes warning printout in the console. CopyFramebuffer detects the mismatch, forces TF_LINEAR/TR_CLAMP, and calls AllocImage() to recreate the texture properly. That's what foresthale's 2014 fixup code at lines 837-844 does.
+	accumImage = ImageFromFunction("_accum", R_RGBA8ImageLinear);
 	viewFramebufferRenderImage16 = ImageFromFunction( "_currentFramebufferRender", R_RGBA16FImageLinear );
 //	viewFramebufferRenderImage = ImageFromFunction( "_currentFramebufferRender", R_RGBA8ImageLinear );
 	viewFramebufferDepthImage = ImageFromFunction( "_currentFramebufferDepth", R_DepthStencilImageNearest );
@@ -697,9 +698,10 @@ void idImageManager::CreateIntrinsicImages()
 	glowFramebufferImage16[3] = ImageFromFunction( "_glowFramebufferHDR3", R_RGBA16FImageLinear );
 	// G-Buffer normal image for SSAO/SSR
 	gbufferNormalImage = ImageFromFunction("_gbufferNormals", R_RGBA8ImageLinear);
-	// SSAO images at half resolution
-	ssaoImage = ImageFromFunction("_ssaoBuffer", R_RGBA8ImageLinear);
-	ssaoBlurTempImage = ImageFromFunction("_ssaoBlurTemp", R_RGBA8ImageLinear);
+	// SSAO images - single channel (R8) at full resolution
+	ssaoImage = ImageFromFunction("_ssaoBuffer", R_R8ImageLinear);
+	ssaoBlurTempImage = ImageFromFunction("_ssaoBlurTemp", R_R8ImageLinear);
+	ssaoHistoryImage = ImageFromFunction("_ssaoHistory", R_R8ImageLinear);
 
 	// save a copy of this for material comparison, because currentRenderImage may get
 	// reassigned during stereo rendering

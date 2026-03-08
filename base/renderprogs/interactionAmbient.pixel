@@ -66,8 +66,15 @@ void main( PS_IN fragment, out PS_OUT result ) {
 	localNormal.z = sqrt( abs( dot( localNormal.xy, localNormal.xy ) - 0.25 ) );
 	localNormal = normalize( localNormal );
 
-	half vDotN = saturate( dot3( normalize( fragment.texcoord6.xyz ), localNormal ));
+	//half vDotN = saturate( dot3( normalize( fragment.texcoord6.xyz ), localNormal ));
+	// MD5v12 begin
+	// Blend factor: 0 = full normal map, 1 = flat (use vertex normal)
+	half bumpFlatness = 1.0 - saturate( length( localNormal.xy ) * 50.0 );
 
+	half vDotN_tbn = saturate( dot3( normalize( fragment.texcoord6.xyz ), localNormal ) );
+	half vDotN_vtx = saturate( fragment.texcoord6.w );
+	half vDotN = lerp( vDotN_tbn, vDotN_vtx, bumpFlatness );
+	// end
 	half3 diffuseColor = diffuseMap * rpDiffuseModifier.xyz;
 	half ambientShade = vDotN * ambientScale + ambientBias;
 	half3 lightColor = ambientShade * lightProj.xyz * lightFalloff.xyz;

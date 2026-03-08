@@ -76,6 +76,24 @@ void idImage::SubImageUpload( int mipLevel, int x, int y, int z, int width, int 
 	}
 	else
 	{
+		// Clamp upload dimensions to actual mip level size.
+		// Cubemap bimage data may store padded dimensions (e.g. 4x4)
+		// for mip levels smaller than 4x4, which is correct for DXT
+		// but would exceed the actual mip size for uncompressed formats.
+		int mipWidth = Max(1, opts.width >> mipLevel);
+		int mipHeight = Max(1, opts.height >> mipLevel);
+		if (opts.textureType == TT_CUBIC)
+		{
+			mipHeight = mipWidth;
+		}
+		if (width > mipWidth)
+		{
+			width = mipWidth;
+		}
+		if (height > mipHeight)
+		{
+			height = mipHeight;
+		}
 		assert( x + width <= opts.width && y + height <= opts.height );
 	}
 	
@@ -133,8 +151,28 @@ void idImage::SubImageUpload( int mipLevel, int x, int y, int z, int width, int 
 		
 		qglTexSubImage2D( uploadTarget, mipLevel, x, y, width, height, dataFormat, dataType, pic );
 	}
+//#ifdef DEBUG
+//	GL_CheckErrors();
+//#endif
 #ifdef DEBUG
-	GL_CheckErrors();
+	{
+		GLenum err = qglGetError();
+		if (err != GL_NO_ERROR)
+		{
+			common->Warning(
+				"GL error 0x%x after %s upload for '%s': "
+				"fmt=%d intFmt=0x%x dataFmt=0x%x dataType=0x%x "
+				"mip=%d x=%d y=%d w=%d h=%d "
+				"opts(%dx%d lvls=%d) texnum=%u compSize=%d",
+				err,
+				IsCompressed() ? "compressed" : "uncompressed",
+				GetName(),
+				opts.format, internalFormat, dataFormat, dataType,
+				mipLevel, x, y, width, height,
+				opts.width, opts.height, opts.numLevels, texnum,
+				compressedSize);
+		}
+	}
 #endif
 	if( opts.format == FMT_RGB565 )
 	{
@@ -436,13 +474,23 @@ void idImage::AllocImage()
 			dataType = GL_UNSIGNED_BYTE;
 			break;
 		case FMT_X16:
+#if defined( USE_CORE_PROFILE )
+			internalFormat = GL_R16;
+			dataFormat = GL_RED;
+#else
 			internalFormat = GL_INTENSITY16;
 			dataFormat = GL_LUMINANCE;
+#endif
 			dataType = GL_UNSIGNED_SHORT;
 			break;
 		case FMT_Y16_X16:
+#if defined( USE_CORE_PROFILE )
+			internalFormat = GL_RG16;
+			dataFormat = GL_RG;
+#else
 			internalFormat = GL_LUMINANCE16_ALPHA16;
 			dataFormat = GL_LUMINANCE_ALPHA;
+#endif
 			dataType = GL_UNSIGNED_SHORT;
 			break;
 		// foresthale 2014-02-19: added FMT_RGBA16F and FMT_DEPTHSTENCIL for HDR view rendering

@@ -198,9 +198,23 @@ idCVar r_ssao("r_ssao", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "enable s
 idCVar r_ssaoRadius("r_ssaoRadius", "32.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "SSAO sample radius in world units");
 idCVar r_ssaoIntensity("r_ssaoIntensity", "1.8", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "SSAO darkening intensity");
 idCVar r_ssaoBias("r_ssaoBias", "0.05", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "SSAO angle bias to reduce self-occlusion");
-//idCVar r_ssaoMaxDistance("r_ssaoMaxDistance", "384.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum distance for AO in world units");
-idCVar r_ssaoProjScale("r_ssaoMaxDistance", "384.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum distance for AO in world units");
+idCVar r_ssaoProjScale("r_ssaoProjScale", "384.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum distance for AO in world units");
 idCVar r_showSSAO("r_showSSAO", "0", CVAR_RENDERER | CVAR_BOOL, "display the SSAO buffer");
+idCVar r_ssaoMaxDistance("r_ssaoMaxDistance", "512.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum distance for SSAO effect in world units");
+idCVar r_ssaoHalfRes("r_ssaoHalfRes", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "render SSAO at half resolution for better performance");
+idCVar r_ssaoTemporal("r_ssaoTemporal", "1", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "enable temporal accumulation for SSAO");
+idCVar r_ssaoTemporalBlend("r_ssaoTemporalBlend", "0.85", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "temporal blend factor: 0.0 = current only, 0.95 = heavy history", 0.0f, 0.85f);
+
+// SSR
+idCVar r_ssr("r_ssr", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "enable screen-space reflections");
+idCVar r_ssrMaxDistance("r_ssrMaxDistance", "1500.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "maximum ray march distance in view-space units");
+idCVar r_ssrSteps("r_ssrSteps", "32", CVAR_RENDERER | CVAR_INTEGER | CVAR_ARCHIVE, "number of ray march steps", 8, 64);
+idCVar r_ssrThickness("r_ssrThickness", "1.5", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "depth thickness threshold for ray hit detection");
+idCVar r_ssrGlossThreshold("r_ssrGlossThreshold", "0.15", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "minimum gloss value for SSR (0-1)");
+idCVar r_ssrIntensity("r_ssrIntensity", "0.8", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "reflection intensity multiplier");
+idCVar r_showSSR("r_showSSR", "0", CVAR_RENDERER | CVAR_BOOL, "debug: show SSR reflection buffer only");
+idCVar r_ssrFadeStrength("r_ssrFadeStrength", "0.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "controls how quickly reflections fade with distance: 0=no fade, 1=aggressive fade", 0.0f, 1.0f);
+idCVar r_ssrBlur("r_ssrBlur", "0.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "reflection roughness blur: 0=sharp mirror, 1=maximum blur (uses temporal)", 0.0f, 1.0f);
 
 idCVar r_showPrimitives( "r_showPrimitives", "0", CVAR_RENDERER | CVAR_INTEGER, "report drawsurf/index/vertex counts" );
 idCVar r_showEdges( "r_showEdges", "0", CVAR_RENDERER | CVAR_BOOL, "draw the sil edges" );

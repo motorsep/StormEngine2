@@ -29,4 +29,5 @@ void main( PS_IN fragment, out PS_OUT result ) {
 
 	// Display as color: the [0,1] encoded normal maps directly to visible RGB
 	result.color = float4( normalSample.xyz, 1.0 );
+	//result.color = float4( normalSample.www, 1.0 ); // debug for gloss in g-buffer - comment out or remove when finalized 
 }

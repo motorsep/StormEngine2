@@ -152,7 +152,9 @@ void main( VS_IN vertex, out VS_OUT result ) {
 	result.texcoord6.x = dot3( tangent, toView );
 	result.texcoord6.y = dot3( binormal, toView );
 	result.texcoord6.z = dot3( normal, toView );
-	result.texcoord6.w = 1.0f;
+	//result.texcoord6.w = 1.0f;
+	// For MD5v12; Seam-free V.N for flat bump maps
+	result.texcoord6.w = dot3( normal, normalize( toView ) );
 
 	// for joint transformation of the tangent space, we use color and
 	// color2 for weighting information, so hopefully there aren't any

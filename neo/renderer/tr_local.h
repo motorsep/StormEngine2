@@ -1035,9 +1035,23 @@ extern idCVar r_ssao;
 extern idCVar r_ssaoRadius;
 extern idCVar r_ssaoIntensity;
 extern idCVar r_ssaoBias;
-//extern idCVar r_ssaoMaxDistance;
 extern idCVar r_ssaoProjScale;
 extern idCVar r_showSSAO;
+extern idCVar r_ssaoMaxDistance;
+extern idCVar r_ssaoHalfRes;
+extern idCVar r_ssaoTemporal;
+extern idCVar r_ssaoTemporalBlend;
+
+// SSR
+extern idCVar r_ssr;
+extern idCVar r_ssrMaxDistance;
+extern idCVar r_ssrSteps;
+extern idCVar r_ssrThickness;
+extern idCVar r_ssrGlossThreshold;
+extern idCVar r_ssrIntensity;
+extern idCVar r_showSSR;
+extern idCVar r_ssrFadeStrength;
+extern idCVar r_ssrBlur;
 
 extern idCVar r_showTris;					// enables wireframe rendering of the world
 extern idCVar r_showSurfaceInfo;			// show surface material name under crosshair

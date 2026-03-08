@@ -102,16 +102,24 @@ void main( PS_IN fragment, out PS_OUT result )
 	localNormal.xy = bumpMap.wy - 0.5; 
 	localNormal.z = sqrt( abs( dot( localNormal.xy, localNormal.xy ) - 0.25 ) );
 	localNormal = normalize( localNormal );
+	// MD5v12 begin
+	// Blend factor: 0 = full normal map, 1 = flat (use vertex normal)
+	// localNormal.xy is near zero when bump map is flat
+	half bumpFlatness = 1.0 - saturate( length( localNormal.xy ) * 50.0 );
 
-	const half specularPower = glossMap.x * 32; // default value comes out to be pow(n,15) this way
-	half hDotN = saturate( dot3( normalize( fragment.texcoord6.xyz ), localNormal ) );
+	const half specularPower = glossMap.x * 32;
+	half hDotN_tbn = saturate( dot3( normalize( fragment.texcoord6.xyz ), localNormal ) );
+	half hDotN_vtx = saturate( fragment.texcoord6.w );
+	half hDotN = lerp( hDotN_tbn, hDotN_vtx, bumpFlatness );
 	half3 specularContribution = _half3( pow( hDotN, specularPower ) ) ;
 
 	half3 diffuseColor = diffuseMap.xyz * rpDiffuseModifier.xyz;
 	half3 specularColor = specMap.xyz * specularContribution * rpSpecularModifier.xyz;
 
-	half mainShade = saturate( dot3( lightVector, localNormal ));
-
+	half mainShade_tbn = saturate( dot3( lightVector, localNormal ) );
+	half mainShade_vtx = saturate( fragment.texcoord0.w );
+	half mainShade = lerp( mainShade_tbn, mainShade_vtx, bumpFlatness );
+	// end
 	half softShade = saturate( mainShade * softScale + softBias );
 	half finalShade = saturate( mainShade * diffuseScale + diffuseBias ) * softShade;
 
