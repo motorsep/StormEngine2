@@ -3538,12 +3538,15 @@ void idCollisionModelManagerLocal::FinishModel( cm_model_t* model )
 	// try to merge polygons
 	checkCount++;
 	MergeTreePolygons( model, model->node );
+	common->UpdateLevelLoadPacifier( true );
 	// find internal edges (no mesh can ever collide with internal edges)
 	checkCount++;
 	FindInternalEdges( model, model->node );
+	common->UpdateLevelLoadPacifier( true );
 	// calculate edge normals
 	checkCount++;
 	CalculateEdgeNormals( model, model->node );
+	common->UpdateLevelLoadPacifier( true );
 	
 	//common->Printf( "%s vertex hash spread is %d\n", model->name.c_str(), cm_vertexHash->GetSpread() );
 	//common->Printf( "%s edge hash spread is %d\n", model->name.c_str(), cm_edgeHash->GetSpread() );
@@ -3787,6 +3790,9 @@ void idCollisionModelManagerLocal::WriteBinaryModelToFile( cm_model_t* model, id
 	file->WriteBig( model->numSharpEdges );
 	file->WriteBig( model->numRemovedPolys );
 	file->WriteBig( model->numMergedPolys );
+	
+	common->UpdateLevelLoadPacifier( true );
+	
 	for( int i = 0; i < model->numVertices; i++ )
 	{
 		file->WriteBig( model->vertices[i].p );
@@ -3794,6 +3800,9 @@ void idCollisionModelManagerLocal::WriteBinaryModelToFile( cm_model_t* model, id
 		file->WriteBig( model->vertices[i].side );
 		file->WriteBig( model->vertices[i].sideSet );
 	}
+	
+	common->UpdateLevelLoadPacifier( true );
+	
 	for( int i = 0; i < model->numEdges; i++ )
 	{
 		file->WriteBig( model->edges[i].checkcount );
@@ -3805,53 +3814,157 @@ void idCollisionModelManagerLocal::WriteBinaryModelToFile( cm_model_t* model, id
 		file->WriteBig( model->edges[i].vertexNum[1] );
 		file->WriteBig( model->edges[i].normal );
 	}
+	
+	common->UpdateLevelLoadPacifier( true );
+	
 	file->WriteBig( model->polygonMemory );
 	file->WriteBig( model->brushMemory );
+	
+	// ---- Growable write buffer to eliminate millions of individual file->WriteBig calls ----
+	struct WriteBuffer
+	{
+		byte*	data;
+		int		size;
+		int		capacity;
+		
+		void Init( int initialCapacity )
+		{
+			capacity = initialCapacity > 0 ? initialCapacity : 4096;
+			size = 0;
+			data = (byte*)Mem_Alloc( capacity, TAG_TEMP );
+		}
+		void Shutdown()
+		{
+			if( data ) { Mem_Free( data ); data = NULL; }
+			size = capacity = 0;
+		}
+		void EnsureSpace( int needed )
+		{
+			if( size + needed <= capacity ) return;
+			int newCap = capacity * 2;
+			while( newCap < size + needed ) newCap *= 2;
+			byte* p = (byte*)Mem_Alloc( newCap, TAG_TEMP );
+			memcpy( p, data, size );
+			Mem_Free( data );
+			data = p;
+			capacity = newCap;
+		}
+		void WriteInt( int v )
+		{
+			EnsureSpace( 4 );
+			int be = BigLong( v );
+			memcpy( data + size, &be, 4 );
+			size += 4;
+		}
+		void WriteFloat( float v )
+		{
+			union { float f; int i; } u; u.f = v;
+			EnsureSpace( 4 );
+			int be = BigLong( u.i );
+			memcpy( data + size, &be, 4 );
+			size += 4;
+		}
+		void FlushToFile( idFile* f )
+		{
+			if( size > 0 ) f->Write( data, size );
+			size = 0;
+		}
+	};
+	
 	struct local
 	{
-		static void BuildUniqueLists( cm_node_t* node, idList< cm_polygon_t* >& polys, idList< cm_brush_t* >& brushes )
+		static void BuildUniqueLists( cm_node_t* node, idList< cm_polygon_t* >& polys, idList< cm_brush_t* >& brushes, int checkCount )
 		{
 			for( cm_polygonRef_t* pr = node->polygons; pr != NULL; pr = pr->next )
 			{
-				polys.AddUnique( pr->p );
+				if( pr->p->checkcount != checkCount )
+				{
+					pr->p->checkcount = checkCount;
+					polys.Append( pr->p );
+				}
 			}
 			for( cm_brushRef_t* br = node->brushes; br != NULL; br = br->next )
 			{
-				brushes.AddUnique( br->b );
+				if( br->b->checkcount != checkCount )
+				{
+					br->b->checkcount = checkCount;
+					brushes.Append( br->b );
+				}
 			}
 			if( node->planeType != -1 )
 			{
-				BuildUniqueLists( node->children[0], polys, brushes );
-				BuildUniqueLists( node->children[1], polys, brushes );
+				BuildUniqueLists( node->children[0], polys, brushes, checkCount );
+				BuildUniqueLists( node->children[1], polys, brushes, checkCount );
 			}
 		}
-		static void WriteNodeTree( idFile* file, cm_node_t* node, idList< cm_polygon_t* >& polys, idList< cm_brush_t* >& brushes )
+		
+		static void WriteNodeTreeBuffered( WriteBuffer& buf, cm_node_t* node, idHashIndex& polyHash, idList< cm_polygon_t* >& polys, idHashIndex& brushHash, idList< cm_brush_t* >& brushes )
 		{
-			file->WriteBig( node->planeType );
-			file->WriteBig( node->planeDist );
+			buf.WriteInt( node->planeType );
+			buf.WriteFloat( node->planeDist );
 			for( cm_polygonRef_t* pr = node->polygons; pr != NULL; pr = pr->next )
 			{
-				file->WriteBig( polys.FindIndex( pr->p ) );
+				int key = polyHash.GenerateKey( (unsigned int)(size_t)pr->p );
+				int index = -1;
+				for( int i = polyHash.First( key ); i != -1; i = polyHash.Next( i ) )
+				{
+					if( polys[i] == pr->p ) { index = i; break; }
+				}
+				buf.WriteInt( index );
 			}
-			file->WriteBig( -1 );
+			buf.WriteInt( -1 );
 			for( cm_brushRef_t* br = node->brushes; br != NULL; br = br->next )
 			{
-				file->WriteBig( brushes.FindIndex( br->b ) );
+				int key = brushHash.GenerateKey( (unsigned int)(size_t)br->b );
+				int index = -1;
+				for( int i = brushHash.First( key ); i != -1; i = brushHash.Next( i ) )
+				{
+					if( brushes[i] == br->b ) { index = i; break; }
+				}
+				buf.WriteInt( index );
 			}
-			file->WriteBig( -1 );
+			buf.WriteInt( -1 );
 			if( node->planeType != -1 )
 			{
-				WriteNodeTree( file, node->children[0], polys, brushes );
-				WriteNodeTree( file, node->children[1], polys, brushes );
+				WriteNodeTreeBuffered( buf, node->children[0], polyHash, polys, brushHash, brushes );
+				WriteNodeTreeBuffered( buf, node->children[1], polyHash, polys, brushHash, brushes );
 			}
 		}
 	};
+	
 	idList< cm_polygon_t* > polys;
 	idList< cm_brush_t* > brushes;
-	local::BuildUniqueLists( model->node, polys, brushes );
+	checkCount++;
+	
+#ifndef NDEBUG
+	int t0 = Sys_Milliseconds();
+#endif
+	
+	local::BuildUniqueLists( model->node, polys, brushes, checkCount );
 	assert( polys.Num() == model->numPolygons );
 	assert( brushes.Num() == model->numBrushes );
 	
+#ifndef NDEBUG
+	int t1 = Sys_Milliseconds();
+#endif
+	
+	// Build hash maps — idHashIndex requires power-of-two sizes
+	int polyHashSize = idMath::CeilPowerOfTwo( Max( polys.Num() * 2, 16 ) );
+	idHashIndex polyHash( polyHashSize, polys.Num() );
+	for( int i = 0; i < polys.Num(); i++ )
+	{
+		polyHash.Add( polyHash.GenerateKey( (unsigned int)(size_t)polys[i] ), i );
+	}
+	int brushHashSize = idMath::CeilPowerOfTwo( Max( brushes.Num() * 2, 16 ) );
+	idHashIndex brushHash( brushHashSize, brushes.Num() );
+	for( int i = 0; i < brushes.Num(); i++ )
+	{
+		brushHash.Add( brushHash.GenerateKey( (unsigned int)(size_t)brushes[i] ), i );
+	}
+	
+	common->UpdateLevelLoadPacifier( true );
+	
+	// Materials (small list, fine unbuffered)
 	idList< const idMaterial* > materials;
 	for( int i = 0; i < polys.Num(); i++ )
 	{
@@ -3865,24 +3978,37 @@ void idCollisionModelManagerLocal::WriteBinaryModelToFile( cm_model_t* model, id
 	for( int i = 0; i < materials.Num(); i++ )
 	{
 		if( materials[i] == NULL )
-		{
 			file->WriteString( "" );
-		}
 		else
-		{
 			file->WriteString( materials[i]->GetName() );
-		}
 	}
+	
+#ifndef NDEBUG
+	int t3 = Sys_Milliseconds();
+#endif
+	
+	// Write polygons buffered
+	WriteBuffer polyBuf;
+	polyBuf.Init( polys.Num() * 48 );
 	for( int i = 0; i < polys.Num(); i++ )
 	{
-		file->WriteBig( ( int )materials.FindIndex( polys[i]->material ) );
-		file->WriteBig( polys[i]->numEdges );
-		file->WriteBig( polys[i]->bounds );
-		file->WriteBig( polys[i]->checkcount );
-		file->WriteBig( polys[i]->contents );
-		file->WriteBig( polys[i]->plane );
-		file->WriteBigArray( polys[i]->edges, polys[i]->numEdges );
+		polyBuf.WriteInt( ( int )materials.FindIndex( polys[i]->material ) );
+		polyBuf.WriteInt( polys[i]->numEdges );
+		for( int f = 0; f < 3; f++ ) polyBuf.WriteFloat( polys[i]->bounds[0][f] );
+		for( int f = 0; f < 3; f++ ) polyBuf.WriteFloat( polys[i]->bounds[1][f] );
+		polyBuf.WriteInt( polys[i]->checkcount );
+		polyBuf.WriteInt( polys[i]->contents );
+		for( int f = 0; f < 4; f++ ) polyBuf.WriteFloat( polys[i]->plane[f] );
+		for( int e = 0; e < polys[i]->numEdges; e++ ) polyBuf.WriteInt( polys[i]->edges[e] );
 	}
+	polyBuf.FlushToFile( file );
+	polyBuf.Shutdown();
+	
+#ifndef NDEBUG
+	int t4 = Sys_Milliseconds();
+#endif
+	
+	// Write brushes (likely 0 for ASE terrain)
 	for( int i = 0; i < brushes.Num(); i++ )
 	{
 		file->WriteBig( ( int )materials.FindIndex( brushes[i]->material ) );
@@ -3893,7 +4019,24 @@ void idCollisionModelManagerLocal::WriteBinaryModelToFile( cm_model_t* model, id
 		file->WriteBig( brushes[i]->primitiveNum );
 		file->WriteBigArray( brushes[i]->planes, brushes[i]->numPlanes );
 	}
-	local::WriteNodeTree( file, model->node, polys, brushes );
+	
+#ifndef NDEBUG
+	int t5 = Sys_Milliseconds();
+#endif
+	
+	// Write node tree buffered — this is the big one (2M nodes, 878K poly refs)
+	WriteBuffer treeBuf;
+	treeBuf.Init( model->numNodes * 20 );	// ~20 bytes per node estimate
+	local::WriteNodeTreeBuffered( treeBuf, model->node, polyHash, polys, brushHash, brushes );
+	common->UpdateLevelLoadPacifier( true );
+	treeBuf.FlushToFile( file );
+	treeBuf.Shutdown();
+	
+#ifndef NDEBUG
+	int t6 = Sys_Milliseconds();
+	common->Printf( "  CM Write: BuildLists+Hash %d ms, Polys %d ms, Tree %d ms (nodes: %d, polyRefs: %d), Total %d ms\n",
+		t1 - t0 + (t3 - t1), t4 - t3, t6 - t5, model->numNodes, model->numPolygonRefs, t6 - t0 );
+#endif
 }
 
 /*
@@ -4005,16 +4148,19 @@ cm_model_t* idCollisionModelManagerLocal::LoadRenderModel( const char* fileName 
 	cm_edgeHash->ResizeIndex( model->maxEdges );
 	
 	ClearHash( bounds );
+	
+#ifndef NDEBUG
+	int timeStart = Sys_Milliseconds();
+#endif
+	
 	surfCount = renderModel->NumSurfaces();
 	for( i = 0; i < surfCount; i++ )
 	{
 		surf = renderModel->Surface( i );
-		// if this surface has no contents
 		if( !( surf->shader->GetContentFlags() & CONTENTS_REMOVE_UTIL ) )
 		{
 			continue;
 		}
-		// if the model has a collision surface and this surface is not a collision surface
 		if( collisionSurface && !( surf->shader->GetSurfaceFlags() & SURF_COLLISION ) )
 		{
 			continue;
@@ -4029,20 +4175,49 @@ cm_model_t* idCollisionModelManagerLocal::LoadRenderModel( const char* fileName 
 			w.GetPlane( plane );
 			plane = -plane;
 			PolygonFromWinding( model, &w, plane, surf->shader, 1 );
+			
+			if( ( j % 3000 ) == 0 )
+			{
+				common->UpdateLevelLoadPacifier( true );
+			}
 		}
 	}
+	
+#ifndef NDEBUG
+	int timePolygons = Sys_Milliseconds();
+	common->Printf( "CM %s: PolygonFromWinding %d ms\n", fileName, timePolygons - timeStart );
+#endif
+	
 	common->UpdateLevelLoadPacifier(true);
-	// create a BSP tree for the model
 	model->node = CreateAxialBSPTree( model, model->node );
+	
+#ifndef NDEBUG
+	int timeBSP = Sys_Milliseconds();
+	common->Printf( "CM %s: CreateAxialBSPTree %d ms\n", fileName, timeBSP - timePolygons );
+#endif
 	
 	model->isConvex = false;
 	
 	FinishModel( model );
 	
-	// shutdown the hash
+#ifndef NDEBUG
+	int timeFinish = Sys_Milliseconds();
+	common->Printf( "CM %s: FinishModel %d ms\n", fileName, timeFinish - timeBSP );
+#endif
+	
 	ShutdownHash();
 	
+	common->UpdateLevelLoadPacifier( true );
+	
 	WriteBinaryModel( model, generatedFileName, sourceTimeStamp );
+	
+#ifndef NDEBUG
+	int timeWrite = Sys_Milliseconds();
+	common->Printf( "CM %s: WriteBinaryModel %d ms\n", fileName, timeWrite - timeFinish );
+	common->Printf( "CM %s: TOTAL %d ms\n", fileName, timeWrite - timeStart );
+#endif
+	
+	common->UpdateLevelLoadPacifier( true );
 	
 	return model;
 }
