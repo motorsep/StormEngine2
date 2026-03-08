@@ -1506,7 +1506,8 @@ int idDxtEncoder::GetSquareNormalsDXT5Error( const int* normalBlock, const byte*
 	}
 	else
 	{
-		assert( smax == smin );
+		// smax <= smin: endpoints quantized to same or reversed RGB565 value.
+		// This is valid — use 2-color interpolation mode.
 		colors[2][0] = ( 1 * colors[0][0] + 1 * colors[1][0] ) / 2;
 		colors[2][1] = ( 1 * colors[0][1] + 1 * colors[1][1] ) / 2;
 		colors[2][2] = ( 1 * colors[0][2] + 1 * colors[1][2] ) / 2;

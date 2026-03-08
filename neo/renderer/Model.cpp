@@ -344,6 +344,7 @@ void idRenderModelStatic::InitFromFile( const char* fileName )
 	purged = false;
 	
 	// create the bounds for culling and dynamic surface creation
+	common->UpdateLevelLoadPacifier( true );
 	FinishSurfaces();
 }
 
@@ -568,6 +569,8 @@ void idRenderModelStatic::WriteBinaryModel( idFile* file, ID_TIME_T* _timeStamp 
 	file->WriteBig( surfaces.Num() );
 	for( int i = 0; i < surfaces.Num(); i++ )
 	{
+		common->UpdateLevelLoadPacifier( true );
+		
 		file->WriteBig( surfaces[i].id );
 		if( surfaces[i].shader != NULL && surfaces[i].shader->GetName() != NULL )
 		{
@@ -1090,6 +1093,8 @@ void idRenderModelStatic::FinishSurfaces()
 	{
 		const modelSurface_t*	surf = &surfaces[i];
 		
+		common->UpdateLevelLoadPacifier( true );
+		
 		R_CleanupTriangles( surf->geometry, surf->geometry->generateNormals, true, surf->shader->UseUnsmoothedTangents() );
 		if( surf->shader->SurfaceCastsShadow() )
 		{
@@ -1297,6 +1302,8 @@ bool idRenderModelStatic::ConvertASEToModelSurfaces( const struct aseModel_s* as
 	// build the surfaces
 	for( objectNum = 0; objectNum < ase->objects.Num(); objectNum++ )
 	{
+		common->UpdateLevelLoadPacifier( true );
+		
 		object = ase->objects[objectNum];
 		mesh = &object->mesh;
 		material = ase->materials[object->materialRef];

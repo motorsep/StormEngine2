@@ -144,7 +144,9 @@ void main( VS_IN vertex, out VS_OUT result ) {
 	result.texcoord0.x = dot3( tangent, toLightLocal );
 	result.texcoord0.y = dot3( bitangent, toLightLocal );
 	result.texcoord0.z = dot3( normal, toLightLocal );
-	result.texcoord0.w = 1.0f;
+	//result.texcoord0.w = 1.0f;
+	// for MD5v12; Seam-free N.L for flat bump maps (bypasses TBN discontinuity at UV seams)
+	result.texcoord0.w = dot3( normal, normalize( toLightLocal ) );
 
 	//textures 1 takes the base coordinates by the texture matrix
 	result.texcoord1 = defaultTexCoord;
@@ -186,7 +188,9 @@ void main( VS_IN vertex, out VS_OUT result ) {
 	result.texcoord6.x = dot3( tangent, halfAngleVector );
 	result.texcoord6.y = dot3( bitangent, halfAngleVector );
 	result.texcoord6.z = dot3( normal, halfAngleVector );
-	result.texcoord6.w = 1.0f;
+	//result.texcoord6.w = 1.0f;
+	// For MD5v12; Seam-free N.H for flat bump maps
+	result.texcoord6.w = dot3( normal, normalize( halfAngleVector ) );
 	
 	result.texcoord7 = modelPosition;
 	

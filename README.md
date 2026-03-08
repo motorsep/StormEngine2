@@ -80,6 +80,8 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - SSAO
 
+- SSR 
+
 - Soft shadows using PCF hardware shadow mapping
 
 - True 64 bit HDR imaging
@@ -152,10 +154,11 @@ A WISHLIST OF FEATURES (to be added to the engine by some programming wizard :) 
 - Headless dedicated server
 - Master server app
 - Improve shadowmapping (particularly cascaded shadowmaps on huge levels)
-- Replace current texture compressor with fast BC7 compressor
+- ~~Multithread DXT5 "Scalerd" YCoCg compressor~~
 - Replace all legacy OpenGL 1.x stuff with OpenGL 3.3 (or whatever base standard is nowadays)
 - Parallax-corrected cubemap reflections (with support for equirectangle textures; or better yet reflection capture entities)
 - ~~SSAO~~
+- ~~SSR~~
 - Light shafts
 - Good looking and (relatively) fast POM shader with self-shadowing
 - Volumetric fog supporting shadows

@@ -97,7 +97,9 @@ void main( VS_IN vertex, out VS_OUT result ) {
 	result.texcoord6.x = dot3( tangent, toView );
 	result.texcoord6.y = dot3( binormal, toView );
 	result.texcoord6.z = dot3( normal, toView );
-	result.texcoord6.w = 1.0f;
+	//result.texcoord6.w = 1.0f;
+	// For MD5v12; Seam-free V.N for flat bump maps
+	result.texcoord6.w = dot3( normal, normalize( toView ) );
 
 	//# generate the vertex color, which can be 1.0, color, or 1.0 - color
 	//# for 1.0 : env[16] = 0, env[17] = 1

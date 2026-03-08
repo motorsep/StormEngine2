@@ -1133,7 +1133,7 @@ static void RB_FillDepthBufferFast( drawSurf_t** drawSurfs, int numDrawSurfs )
 		}
 		
 		// G-Buffer: set model-view matrix for normal transformation
-	    // Skip weapon/depth-hacked surfaces � they cause SSAO halos
+	    // Skip weapon/depth-hacked surfaces — they cause SSAO halos
 		// Also skip sky and portal sky
         const bool surfUseGbuffer = useGbuffer
 			&& !surf->space->weaponDepthHack
@@ -1183,6 +1183,21 @@ static void RB_FillDepthBufferFast( drawSurf_t** drawSurfs, int numDrawSurfs )
 		// draw it solid
 		//RB_DrawElementsWithCounters( surf );
 		
+		// Bind gloss texture for G-Buffer surfaces
+		if (surfUseGbuffer)
+		{
+			GL_SelectTexture(0);
+			idImage* glossImage = shader->GetFastPathGlossImage();
+			if (glossImage != NULL)
+			{
+				glossImage->Bind();
+			}
+			else
+			{
+				globalImages->glossImage->Bind();
+			}
+		}
+
 		// Mask color writes for non-gbuffer surfaces so the depth shader
 		// doesn't write black into the normal buffer while gbuffer FBO is bound
 		if (useGbuffer && !surfUseGbuffer)
@@ -1224,7 +1239,7 @@ static void RB_FillDepthBufferFast( drawSurf_t** drawSurfs, int numDrawSurfs )
 			globalFramebuffers->BindSystemFramebuffer();
 		}
 
-		// Clear the color buffer � the interaction pass adds light 
+		// Clear the color buffer — the interaction pass adds light 
 		// contributions additively, so it must start from black.
 		// Without the gbuffer, the depth shader's black output did this 
 		// implicitly. With the gbuffer FBO bound, the color buffer was 
@@ -4120,7 +4135,7 @@ static void RB_FogAllLights(bool glowStage)
 }
 
 //===========================================================================
-// RB_SSAO() FUNCTION � FULL RESOLUTION VERSION
+// RB_SSAO() FUNCTION — FULL RESOLUTION VERSION
 //===========================================================================
 
 static void RB_SSAO()
@@ -4128,20 +4143,10 @@ static void RB_SSAO()
     if( !r_ssao.GetBool() || !r_useGbuffer.GetBool() || !backEnd.viewDef->viewEntitys )
         return;
 
-	/*static int debugCounter = 0;
-	if ((debugCounter++ % 300) == 0) {
-		common->Printf("SSAO: ssao=%dx%d depth=%dx%d gbufN=%dx%d viewport=%d,%d %dx%d\n",
-			globalImages->ssaoImage->GetUploadWidth(),
-			globalImages->ssaoImage->GetUploadHeight(),
-			globalImages->viewFramebufferDepthImage->GetUploadWidth(),
-			globalImages->viewFramebufferDepthImage->GetUploadHeight(),
-			globalImages->gbufferNormalImage->GetUploadWidth(),
-			globalImages->gbufferNormalImage->GetUploadHeight(),
-			backEnd.viewDef->viewport.x1,
-			backEnd.viewDef->viewport.y1,
-			backEnd.viewDef->viewport.GetWidth(),
-			backEnd.viewDef->viewport.GetHeight());
-	}*/
+	// Static storage for previous frame MVP — persists across frames.
+	// Separate from backEnd.prevMVP to avoid interfering with motion blur.
+	static idRenderMatrix ssaoPrevMVP;
+	static bool ssaoPrevMVPValid = false;
 
     renderLog.OpenBlock("RB_SSAO");
 
@@ -4149,20 +4154,29 @@ static void RB_SSAO()
     int width = viewport.GetWidth();
     int height = viewport.GetHeight();
 
+	// Half-res SSAO: AO compute and blur run at half resolution
+	const bool halfRes = r_ssaoHalfRes.GetBool();
+	int aoWidth = halfRes ? (width + 1) / 2 : width;
+	int aoHeight = halfRes ? (height + 1) / 2 : height;
+	float resScale = halfRes ? 2.0f : 1.0f;
+
 	/*common->Printf("SSAO resize check: width=%d height=%d current=%dx%d\n",
 		width, height,
 		globalImages->ssaoImage->GetUploadWidth(),
 		globalImages->ssaoImage->GetUploadHeight());*/
 
-    // Resize SSAO images if needed (now at FULL resolution)
-    if( globalImages->ssaoImage->GetUploadWidth() != width
-     || globalImages->ssaoImage->GetUploadHeight() != height )
-    {
-        globalImages->ssaoImage->Resize(width, height);
-        globalImages->ssaoBlurTempImage->Resize(width, height);
-        globalFramebuffers->ssaoFramebuffer->PurgeFramebuffer();
-        globalFramebuffers->ssaoBlurTempFramebuffer->PurgeFramebuffer();
-    }
+	// Resize SSAO images if needed (aoWidth × aoHeight — full or half res)
+	if (globalImages->ssaoImage->GetUploadWidth() != aoWidth
+		|| globalImages->ssaoImage->GetUploadHeight() != aoHeight)
+	{
+		globalImages->ssaoImage->Resize(aoWidth, aoHeight);
+		globalImages->ssaoBlurTempImage->Resize(aoWidth, aoHeight);
+		globalImages->ssaoHistoryImage->Resize(aoWidth, aoHeight);
+		globalFramebuffers->ssaoFramebuffer->PurgeFramebuffer();
+		globalFramebuffers->ssaoBlurTempFramebuffer->PurgeFramebuffer();
+		globalFramebuffers->ssaoHistoryFramebuffer->PurgeFramebuffer();
+		ssaoPrevMVPValid = false;  // invalidate history on resize
+	}
 
     // Compute inverse projection matrix (R_MatrixFullInverse is in GLMatrix.h/cpp)
     float invProjectionMatrix[16];
@@ -4187,12 +4201,19 @@ static void RB_SSAO()
 	aoParm[3] = r_ssaoProjScale.GetFloat();                        // projScale
 	SetFragmentParm(RENDERPARM_DIFFUSEMODIFIER, aoParm);
 
-    // ===================================================
-    // PASS 1: Compute AO at full resolution
-    // ===================================================
-    globalFramebuffers->ssaoFramebuffer->Bind();
-    GL_Viewport(0, 0, width, height);
-    GL_Scissor(0, 0, width, height);
+	float aoExtraParm[4];
+	aoExtraParm[0] = r_ssaoMaxDistance.GetFloat();
+	aoExtraParm[1] = resScale;
+	aoExtraParm[2] = 0.0f;
+	aoExtraParm[3] = 0.0f;
+	SetFragmentParm(RENDERPARM_SPECULARMODIFIER, aoExtraParm);
+
+	// ===================================================
+	// PASS 1: Compute AO
+	// ===================================================
+	globalFramebuffers->ssaoFramebuffer->Bind();
+	GL_Viewport(0, 0, aoWidth, aoHeight);
+	GL_Scissor(0, 0, aoWidth, aoHeight);
 
     renderProgManager.BindShader_SSAO();
 
@@ -4200,12 +4221,12 @@ static void RB_SSAO()
     SetVertexParms(RENDERPARM_MODELMATRIX_X, invProjTranspose, 4);
 
     // rpScreenCorrectionFactor.xy = 1/width, 1/height (pixel to UV conversion)
-    float screenParm[4];
-    screenParm[0] = 1.0f / width;
-    screenParm[1] = 1.0f / height;
-    screenParm[2] = (float)width;
-    screenParm[3] = (float)height;
-    SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenParm);
+	float screenParm[4];
+	screenParm[0] = 1.0f / aoWidth;
+	screenParm[1] = 1.0f / aoHeight;
+	screenParm[2] = (float)aoWidth;
+	screenParm[3] = (float)aoHeight;
+	SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenParm);
 
     // Bind textures: samp0 = normals, samp1 = depth
     GL_SelectTexture(0);
@@ -4219,9 +4240,9 @@ static void RB_SSAO()
     // ===================================================
     // PASS 2: Horizontal blur
     // ===================================================
-    globalFramebuffers->ssaoBlurTempFramebuffer->Bind();
-    GL_Viewport(0, 0, width, height);
-    GL_Scissor(0, 0, width, height);
+	globalFramebuffers->ssaoBlurTempFramebuffer->Bind();
+	GL_Viewport(0, 0, aoWidth, aoHeight);
+	GL_Scissor(0, 0, aoWidth, aoHeight);
 
     renderProgManager.BindShader_SSAOBlur();
 
@@ -4250,9 +4271,9 @@ static void RB_SSAO()
     // ===================================================
     // PASS 3: Vertical blur
     // ===================================================
-    globalFramebuffers->ssaoFramebuffer->Bind();
-    GL_Viewport(0, 0, width, height);
-    GL_Scissor(0, 0, width, height);
+	globalFramebuffers->ssaoFramebuffer->Bind();
+	GL_Viewport(0, 0, aoWidth, aoHeight);
+	GL_Scissor(0, 0, aoWidth, aoHeight);
 
     // Direction: vertical (0, 1)
     dirParm[0] = 0.0f;
@@ -4266,6 +4287,101 @@ static void RB_SSAO()
     // samp0 (normals) and samp1 (depth) still bound
 
     RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+
+	// ===================================================
+	// PASS 4: Temporal resolve (optional)
+	// ===================================================
+	// After this pass, the resolved AO is in ssaoBlurTempImage.
+	// If temporal is disabled, we read from ssaoImage in the apply pass.
+	bool useTemporal = r_ssaoTemporal.GetBool() && ssaoPrevMVPValid;
+
+	if (useTemporal)
+	{
+		globalFramebuffers->ssaoBlurTempFramebuffer->Bind();
+		GL_Viewport(0, 0, aoWidth, aoHeight);
+		GL_Scissor(0, 0, aoWidth, aoHeight);
+
+		renderProgManager.BindShader_SSAOTemporal();
+
+		// Compute motion matrix: prevMVP * inverse(currentMVP)
+		int mvpIndex = (backEnd.viewDef->renderView.viewEyeBuffer == 1) ? 1 : 0;
+		idRenderMatrix inverseMVP;
+		idRenderMatrix::Inverse(backEnd.viewDef->worldSpace.mvp, inverseMVP);
+		idRenderMatrix motionMatrix;
+		idRenderMatrix::Multiply(ssaoPrevMVP, inverseMVP, motionMatrix);
+
+		// Upload motion matrix via rpMVPmatrix slots
+		RB_SetMVP(motionMatrix);
+
+		// Upload projection matrix Z row for clipW reconstruction
+		float projZ[4];
+		projZ[0] = backEnd.viewDef->projectionMatrix[2];
+		projZ[1] = backEnd.viewDef->projectionMatrix[6];
+		projZ[2] = backEnd.viewDef->projectionMatrix[10];
+		projZ[3] = backEnd.viewDef->projectionMatrix[14];
+		SetFragmentParm(RENDERPARM_PROJMATRIX_Z, projZ);
+
+		// Temporal blend factor
+		float temporalParm[4];
+		temporalParm[0] = r_ssaoTemporalBlend.GetFloat();  // 85% history, 15% current — good for fast FPS movement
+		temporalParm[1] = 0.0f;
+		temporalParm[2] = 0.0f;
+		temporalParm[3] = 0.0f;
+		SetFragmentParm(RENDERPARM_DIFFUSEMODIFIER, temporalParm);
+		// Screen correction for neighborhood sampling in temporal shader
+		SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenParm);
+
+		// samp0 = current blurred AO (ssaoImage)
+		GL_SelectTexture(0);
+		globalImages->ssaoImage->Bind();
+
+		// samp1 = history AO
+		GL_SelectTexture(1);
+		globalImages->ssaoHistoryImage->Bind();
+
+		// samp2 = depth buffer
+		GL_SelectTexture(2);
+		globalImages->viewFramebufferDepthImage->Bind();
+		
+		RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+
+		// ===================================================
+		// PASS 5: Copy resolved AO to history for next frame
+		// ===================================================
+		globalFramebuffers->ssaoHistoryFramebuffer->Bind();
+		GL_Viewport(0, 0, aoWidth, aoHeight);
+		GL_Scissor(0, 0, aoWidth, aoHeight);
+
+		renderProgManager.BindShader_SSAOApply();
+
+		GL_SelectTexture(0);
+		globalImages->ssaoBlurTempImage->Bind();
+
+		RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+	}
+
+	// Only mark history as valid when temporal actually ran and updated the history buffer
+	if (r_ssaoTemporal.GetBool())
+	{
+		// If temporal didn't run this frame (first frame, no valid history),
+		// still seed the history buffer with current AO for next frame
+		if (!useTemporal)
+		{
+			globalFramebuffers->ssaoHistoryFramebuffer->Bind();
+			GL_Viewport(0, 0, aoWidth, aoHeight);
+			GL_Scissor(0, 0, aoWidth, aoHeight);
+			renderProgManager.BindShader_SSAOApply();
+			GL_SelectTexture(0);
+			globalImages->ssaoImage->Bind();
+			RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+		}
+		ssaoPrevMVP = backEnd.viewDef->worldSpace.mvp;
+		ssaoPrevMVPValid = true;
+	}
+	else
+	{
+		ssaoPrevMVPValid = false;
+	}
 
     // ===================================================
     // PASS 4: Apply AO to scene
@@ -4284,7 +4400,11 @@ static void RB_SSAO()
 		//GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
         renderProgManager.BindShader_SSAOApply();
         GL_SelectTexture(0);
-        globalImages->ssaoImage->Bind();
+		// Read from resolved temporal buffer if temporal is active, otherwise from blurred AO
+		if ( useTemporal )
+			globalImages->ssaoBlurTempImage->Bind();
+		else
+			globalImages->ssaoImage->Bind();
         RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
     }
     else
@@ -4293,9 +4413,121 @@ static void RB_SSAO()
 		GL_State(GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
         renderProgManager.BindShader_SSAOApply();
         GL_SelectTexture(0);
-        globalImages->ssaoImage->Bind();
+		// Read from resolved temporal buffer if temporal is active, otherwise from blurred AO
+		if ( useTemporal )
+			globalImages->ssaoBlurTempImage->Bind();
+		else
+			globalImages->ssaoImage->Bind();
         RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
     }
+
+    // Restore state
+    GL_State(GLS_DEFAULT);
+    GL_Cull(CT_FRONT_SIDED);	
+	GL_SelectTexture(2);
+	globalImages->BindNull();
+	GL_SelectTexture(1);
+	globalImages->BindNull();
+	GL_SelectTexture(0);
+
+    renderLog.CloseBlock();
+}
+
+//===========================================================================
+// RB_SSR() — Screen-Space Reflections
+//===========================================================================
+
+static void RB_SSR()
+{
+    if( !r_ssr.GetBool() || !r_useGbuffer.GetBool() || !backEnd.viewDef->viewEntitys )
+        return;
+
+    renderLog.OpenBlock("RB_SSR");
+
+    const idScreenRect& viewport = backEnd.viewDef->viewport;
+    int width = viewport.GetWidth();
+    int height = viewport.GetHeight();
+
+    // Copy the current framebuffer (lit + fogged + AO'd scene) for SSR to reflect
+    globalImages->currentRenderImage->CopyFramebuffer(
+        viewport.x1, viewport.y1, width, height );
+
+    // Compute inverse projection matrix (same as SSAO)
+    float invProjectionMatrix[16];
+    R_MatrixFullInverse(backEnd.viewDef->projectionMatrix, invProjectionMatrix);
+    float invProjTranspose[16];
+    R_MatrixTranspose(invProjectionMatrix, invProjTranspose);
+
+    // Projection matrix for view-space → screen-space conversion
+    float projMatrixTranspose[16];
+    R_MatrixTranspose(backEnd.viewDef->projectionMatrix, projMatrixTranspose);
+
+    // Bind to the view framebuffer (where we'll blend reflections)
+    if( r_useHDR.GetBool() && !( com_editors ) )
+        globalFramebuffers->viewFramebuffer->Bind();
+    else
+        globalFramebuffers->BindSystemFramebuffer();
+
+    GL_Viewport(viewport.x1, viewport.y1, width, height);
+    GL_Scissor(viewport.x1, viewport.y1, width, height);
+
+    if( r_showSSR.GetBool() )
+    {
+        // Debug: replace scene with reflection buffer
+        GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+    }
+    else
+    {
+        // Normal: alpha blend reflections over the scene
+        GL_State(GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+    }
+    GL_Cull(CT_TWO_SIDED);
+
+    renderProgManager.BindShader_SSR();
+
+    // Upload inverse projection matrix (for position reconstruction)
+    SetVertexParms(RENDERPARM_MODELMATRIX_X, invProjTranspose, 4);
+
+    // Upload projection matrix (for projecting reflected ray to screen)
+    SetVertexParms(RENDERPARM_PROJMATRIX_X, projMatrixTranspose, 4);
+
+    // Screen correction: texel size + dimensions
+    float screenParm[4];
+    screenParm[0] = 1.0f / width;
+    screenParm[1] = 1.0f / height;
+    screenParm[2] = (float)width;
+    screenParm[3] = (float)height;
+    SetFragmentParm(RENDERPARM_SCREENCORRECTIONFACTOR, screenParm);
+
+    // SSR parameters via rpDiffuseModifier
+    float ssrParm[4];
+    ssrParm[0] = r_ssrMaxDistance.GetFloat();
+    ssrParm[1] = (float)r_ssrSteps.GetInteger();
+    ssrParm[2] = r_ssrThickness.GetFloat();
+    ssrParm[3] = r_ssrGlossThreshold.GetFloat();
+    SetFragmentParm(RENDERPARM_DIFFUSEMODIFIER, ssrParm);
+
+    // SSR intensity via rpSpecularModifier
+	float ssrExtra[4];
+	ssrExtra[0] = r_ssrIntensity.GetFloat();
+	ssrExtra[1] = r_ssrBlur.GetFloat();
+	ssrExtra[2] = r_ssrFadeStrength.GetFloat();
+	ssrExtra[3] = 0.0f;
+	SetFragmentParm(RENDERPARM_SPECULARMODIFIER, ssrExtra);
+
+    // samp0 = scene color copy
+    GL_SelectTexture(0);
+    globalImages->currentRenderImage->Bind();
+
+    // samp1 = depth buffer
+    GL_SelectTexture(1);
+    globalImages->viewFramebufferDepthImage->Bind();
+
+    // samp2 = G-Buffer normals + gloss
+    GL_SelectTexture(2);
+    globalImages->gbufferNormalImage->Bind();
+
+    RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
 
     // Restore state
     GL_State(GLS_DEFAULT);
@@ -4308,8 +4540,6 @@ static void RB_SSAO()
 
     renderLog.CloseBlock();
 }
-
-
 
 
 /*
@@ -4504,6 +4734,9 @@ void RB_DrawViewInternal( const viewDef_t* viewDef, const int stereoEye, const b
 
 	// SSAO: compute and apply ambient occlusion after all opaque lighting + fog
 	RB_SSAO();
+
+	// SSR: screen-space reflections for glossy surfaces
+	RB_SSR();
 
 	// foresthale 2014-04-25: draw the transparent surfaces after fog
 	// now that fog has been drawn, we can draw the transparent surfaces
