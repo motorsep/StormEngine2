@@ -80,6 +80,8 @@ OVERALL CHANGES AND ADDITIONAL FEATURES
 
 - SSAO
 
+- SSR 
+
 - Soft shadows using PCF hardware shadow mapping
 
 - True 64 bit HDR imaging
