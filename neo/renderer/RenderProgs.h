@@ -415,6 +415,16 @@ public:
     {
 			BindShader_Builtin(BUILTIN_SSAO_APPLY);
     }
+	void	BindShader_SSAOTemporal()
+	{
+		BindShader_Builtin(BUILTIN_SSAO_TEMPORAL);
+	}
+
+	// SSR
+	void	BindShader_SSR()
+	{
+		BindShader_Builtin(BUILTIN_SSR);
+	}
 
 	// the joints buffer should only be bound for vertex programs that use joints
 	bool	ShaderUsesJoints() const
@@ -510,6 +520,8 @@ protected:
 		BUILTIN_SSAO,
 		BUILTIN_SSAO_BLUR,
 		BUILTIN_SSAO_APPLY,
+		BUILTIN_SSAO_TEMPORAL,
+		BUILTIN_SSR,
 		MAX_BUILTINS
 	};
 	int builtinShaders[MAX_BUILTINS];

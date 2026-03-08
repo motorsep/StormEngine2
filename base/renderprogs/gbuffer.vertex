@@ -10,12 +10,14 @@ This matches the RBDoom3BFG convention where G-Buffer stores view-space data.
 
 struct VS_IN {
 	float4 position : POSITION;
+	float2 texcoord : TEXCOORD0;
 	float4 normal   : NORMAL;
 };
 
 struct VS_OUT {
 	float4 position   : POSITION;
 	float3 texcoord0  : TEXCOORD0;
+	float2 texcoord1  : TEXCOORD1;
 };
 
 void main( VS_IN vertex, out VS_OUT result ) {
@@ -33,4 +35,5 @@ void main( VS_IN vertex, out VS_OUT result ) {
 	viewN.z = dot3( localNormal, rpModelViewMatrixZ );
 
 	result.texcoord0 = viewN;
+	result.texcoord1 = vertex.texcoord;
 }

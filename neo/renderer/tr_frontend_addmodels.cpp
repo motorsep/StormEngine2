@@ -989,7 +989,13 @@ void R_AddSingleModel( viewEntity_t* vEntity )
 			}
 			if( tri->silEdges == NULL )
 			{
-				continue;		// can happen for beam models (shouldn't use a shadow casting material, though...)
+				if (!r_useShadowMapping.GetBool()) 
+				{
+					// fix for md3 not casting shadows; Shadow mapping only renders positions into a depth buffer from the light's POV. 
+					// It doesn't need silhouette edges, tangents, or normals — just xyz and indices, both of which MD3 already provides.
+					continue;   // stencil shadow volumes require silhouette edges
+				}
+				//continue;		// can happen for beam models (shouldn't use a shadow casting material, though...)
 			}
 			
 			// if the static shadow does not have any shadows

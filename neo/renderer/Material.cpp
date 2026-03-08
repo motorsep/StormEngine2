@@ -3518,6 +3518,7 @@ void idMaterial::SetFastPathImages()
 					goto fail;
 				}
 				fastPathSpecularImage = surfaceStage->texture.image;
+				break;
 			}
 			case SL_GLOSS:
 			{
@@ -3526,6 +3527,7 @@ void idMaterial::SetFastPathImages()
 					goto fail;
 				}
 				fastPathGlossImage = surfaceStage->texture.image;
+				break;
 			}
 		}
 	}

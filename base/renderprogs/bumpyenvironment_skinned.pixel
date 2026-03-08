@@ -61,7 +61,10 @@ void main( PS_IN fragment, out PS_OUT result ) {
 	float3 reflectionVector = globalNormal * dot3( globalEye, globalNormal );
 	reflectionVector = ( reflectionVector * 2.0f ) - globalEye;
 
-	float4 envMap = ConvertYCoCgToRGBFull( texCUBE( samp0, reflectionVector ) );
+	//float4 envMap = ConvertYCoCgToRGBFull( texCUBE( samp0, reflectionVector ) );
+	//float4 envMap = ConvertYCoCgToRGB( texCUBE( samp0, reflectionVector ) );
+	float4 envMap = texCUBE( samp0, reflectionVector );
 
 	result.color = float4( envMap.xyz, 1.0f ) * fragment.color;
+	//result.color.xyz = reflectionVector * 0.5 + float3(0.5, 0.5, 0.5); // test 
 }

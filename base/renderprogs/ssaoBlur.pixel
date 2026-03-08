@@ -28,10 +28,14 @@ struct PS_OUT {
 	float4 color : COLOR;
 };
 
-#define EDGE_SHARPNESS 1.0
+#define EDGE_SHARPNESS 0.25 // more aggressive blur; was 0.5
 #define SCALE 2
-#define R 4
-#define USE_NORMALS 1
+#define R 4 // more aggressive blur; was 3
+#define USE_NORMALS 0
+
+// Resolution scale: 1.0 for full-res, 2.0 for half-res
+// Passed via rpSpecularModifier.y from C++
+#define resScale rpSpecularModifier.y
 
 const float FAR_PLANE_Z = -16000.0;
 
@@ -56,12 +60,12 @@ float3 reconstructCSPosition( float2 S, float z ) {
 }
 
 float3 sampleNormal( sampler2D normalBuffer, int2 ssC, int mipLevel ) {
-	return normalize( texelFetch( normalBuffer, ssC, mipLevel ).xyz * 2.0 - 1.0 );
+	return normalize( texelFetch( normalBuffer, int2( float2( ssC ) * resScale ), mipLevel ).xyz * 2.0 - 1.0 );
 }
 
 float3 getPosition( int2 ssP, sampler2D cszBuffer ) {
 	float3 P;
-	P.z = texelFetch( cszBuffer, ssP, 0 ).r;
+	P.z = texelFetch( cszBuffer, int2( float2( ssP ) * resScale ), 0 ).r;
 	P = reconstructCSPosition( float2( ssP ) + float2( 0.5 ), P.z );
 	return P;
 }
@@ -97,12 +101,21 @@ float calculateBilateralWeight( float key, float tapKey, int2 tapLoc, float3 n_C
 }
 
 void main( PS_IN fragment, out PS_OUT result ) {
+	// more aggressive SSAO blur
 	float kernel[R + 1];
 	kernel[0] = 0.153170;
 	kernel[1] = 0.144893;
 	kernel[2] = 0.122649;
 	kernel[3] = 0.092902;
 	kernel[4] = 0.062970;
+	
+	// less aggressive SSAO blur
+	/*
+	float kernel[R + 1];
+	kernel[0] = 0.196482;
+	kernel[1] = 0.186237;
+	kernel[2] = 0.158240;
+	kernel[3] = 0.120542; */
 
 	int2 ssC = int2( fragment.position.xy );
 
@@ -121,8 +134,8 @@ void main( PS_IN fragment, out PS_OUT result ) {
 	float BASE = kernel[0];
 	float totalWeight = BASE;
 	sum *= totalWeight;
-
-	float3 n_C;
+	
+	float3 n_C = float3( 0.0, 0.0, 1.0 );
 #if USE_NORMALS
 	n_C = sampleNormal( samp0, ssC, 0 );
 #endif

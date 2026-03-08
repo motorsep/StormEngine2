@@ -1,0 +1,204 @@
+/*
+===========================================================================
+Screen-Space Reflections
+
+Reconstructs view-space position, reflects the view vector off the
+surface normal, then ray-marches in screen space against the depth buffer.
+
+G-Buffer alpha = gloss (from material glossmap red channel)
+  Higher value = stronger reflections
+  Blur controlled globally via r_ssrBlur CVar
+
+samp0 = scene color (currentRenderImage — the lit, fogged, AO'd scene)
+samp1 = depth buffer
+samp2 = G-Buffer normals + gloss (RGB = normal, A = gloss)
+
+rpModelMatrixX/Y/Z/W = inverse projection matrix (same as SSAO)
+rpProjectionMatrixX/Y/Z/W = projection matrix (for view→screen conversion)
+rpScreenCorrectionFactor.xy = 1/width, 1/height
+rpScreenCorrectionFactor.zw = width, height
+rpDiffuseModifier.x = max ray distance (view-space units)
+rpDiffuseModifier.y = number of steps (float, cast to int in shader)
+rpDiffuseModifier.z = depth thickness
+rpDiffuseModifier.w = gloss threshold
+rpSpecularModifier.x = intensity multiplier
+rpSpecularModifier.y = blur amount (ray jitter, 0=sharp, 1=max scatter, needs temporal)
+rpSpecularModifier.z = fade strength (0=linear fade, 1=aggressive contact-only fade)
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0);   // scene color
+uniform sampler2D samp1 : register(s1);   // depth buffer
+uniform sampler2D samp2 : register(s2);   // G-Buffer normals + gloss
+
+struct PS_IN {
+	float2 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+#define maxRayDist     rpDiffuseModifier.x
+#define numSteps       rpDiffuseModifier.y
+#define thickness      rpDiffuseModifier.z
+#define glossThreshold rpDiffuseModifier.w
+#define ssrIntensity    rpSpecularModifier.x
+#define ssrBlur         rpSpecularModifier.y
+#define ssrFadeStrength rpSpecularModifier.z
+
+// Reconstruct view-space position from screen UV + depth
+float3 reconstructPosition( float2 uv, float depth ) {
+	float4 P;
+	P.xy = uv * 2.0 - 1.0;
+	P.z = depth * 2.0 - 1.0;
+	P.w = 1.0;
+
+	float4 csP;
+	csP.x = dot4( P, rpModelMatrixX );
+	csP.y = dot4( P, rpModelMatrixY );
+	csP.z = dot4( P, rpModelMatrixZ );
+	csP.w = dot4( P, rpModelMatrixW );
+	return csP.xyz / csP.w;
+}
+
+// Project view-space position to screen UV
+float3 projectToScreen( float3 vsPos ) {
+	float4 clip;
+	clip.x = dot4( float4( vsPos, 1.0 ), rpProjectionMatrixX );
+	clip.y = dot4( float4( vsPos, 1.0 ), rpProjectionMatrixY );
+	clip.z = dot4( float4( vsPos, 1.0 ), rpProjectionMatrixZ );
+	clip.w = dot4( float4( vsPos, 1.0 ), rpProjectionMatrixW );
+	clip.xyz /= clip.w;
+	// NDC [-1,1] to UV [0,1]
+	return float3( clip.xy * 0.5 + 0.5, clip.z * 0.5 + 0.5 );
+}
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2 uv = fragment.texcoord0;
+
+	// Read G-Buffer: normal (RGB) and gloss (A)
+	float4 gbuffer = tex2D( samp2, uv );
+	float gloss = gbuffer.w;
+
+	// Early-out for non-reflective surfaces
+	if( gloss < glossThreshold ) {
+		discard;
+	}
+
+	// Decode view-space normal
+	float3 normal = normalize( gbuffer.xyz * 2.0 - 1.0 );
+
+	// Reconstruct view-space position
+	float depth = tex2D( samp1, uv ).r;
+	float3 vsPos = reconstructPosition( uv, depth );
+
+	// View direction (from camera to surface, camera is at origin in view space)
+	float3 viewDir = normalize( vsPos );
+
+	// Reflection direction with roughness-based jitter for blurry reflections
+	float3 reflDir = reflect( viewDir, normal );
+
+	// Jitter the reflection direction for rough surfaces
+	// ssrBlur: 0 = perfect mirror, 1 = maximum roughness scatter
+	if( ssrBlur > 0.001 ) {
+		// Per-pixel noise based on screen position
+		float2 pixelPos = uv * rpScreenCorrectionFactor.zw;
+		float n1 = fract( 52.9829189 * fract( 0.06711056 * pixelPos.x + 0.00583715 * pixelPos.y ) );
+		float n2 = fract( 52.9829189 * fract( 0.06711056 * ( pixelPos.x + 7.0 ) + 0.00583715 * ( pixelPos.y + 3.0 ) ) );
+
+		// Build tangent frame around reflection direction
+		float3 tangent = normalize( cross( reflDir, abs( reflDir.y ) < 0.999 ? float3( 0, 1, 0 ) : float3( 1, 0, 0 ) ) );
+		float3 bitangent = cross( reflDir, tangent );
+
+		// Cosine-weighted hemisphere offset scaled by blur amount
+		float angle = n1 * 6.2831853;
+		float radius = ssrBlur * ssrBlur * sqrt( n2 ) * 0.15;
+		reflDir = normalize( reflDir + tangent * ( cos( angle ) * radius ) + bitangent * ( sin( angle ) * radius ) );
+	}
+
+	// Fresnel — Schlick approximation with F0 = 0.04 (dielectric default)
+	float NdotV = saturate( dot( -viewDir, normal ) );
+	float fresnel = 0.04 + 0.96 * pow( 1.0 - NdotV, 5.0 );
+
+	// Ray march in view space, converting each step to screen space
+	float3 rayEnd = vsPos + reflDir * maxRayDist;
+
+	// Project start and end to screen space
+	float3 ssStart = projectToScreen( vsPos );
+	float3 ssEnd = projectToScreen( rayEnd );
+
+	// March in screen space (more uniform step distribution)
+	float3 ssDir = ssEnd - ssStart;
+	int steps = int( numSteps );
+
+	// Clamp ray direction to stay within screen bounds
+	float tMax = 1.0;
+	if( ssDir.x > 0.0 ) tMax = min( tMax, ( 1.0 - ssStart.x ) / ssDir.x );
+	if( ssDir.x < 0.0 ) tMax = min( tMax, -ssStart.x / ssDir.x );
+	if( ssDir.y > 0.0 ) tMax = min( tMax, ( 1.0 - ssStart.y ) / ssDir.y );
+	if( ssDir.y < 0.0 ) tMax = min( tMax, -ssStart.y / ssDir.y );
+	tMax = max( tMax, 0.0 );
+
+	float stepSize = tMax / float( steps );
+	float3 ssStep = ssDir * stepSize;
+
+	// Start slightly offset to avoid self-intersection
+	float3 ssRay = ssStart + ssStep * 0.5;
+
+	// March
+	float hitT = 0.0;
+	bool hit = false;
+	for( int i = 0; i < steps; i++ ) {
+		ssRay += ssStep;
+
+		if( ssRay.x < 0.0 || ssRay.x > 1.0 || ssRay.y < 0.0 || ssRay.y > 1.0 ) {
+			break;
+		}
+
+		float sampleDepth = tex2D( samp1, ssRay.xy ).r;
+		float depthDiff = ssRay.z - sampleDepth;
+
+		//if( depthDiff > 0.0 && depthDiff < thickness * rpScreenCorrectionFactor.x ) {
+		if( depthDiff > 0.0 && depthDiff < thickness * 0.001 ) {
+			hit = true;
+			hitT = float( i ) / float( steps );
+			break;
+		}
+	}
+
+	if( !hit ) {
+		discard;
+	}
+
+	// Binary refinement: 4 steps to narrow down the exact hit point
+	float3 ssHit = ssRay;
+	float3 refinementStep = ssStep * 0.5;
+	for( int j = 0; j < 4; j++ ) {
+		float sampleDepth = tex2D( samp1, ssHit.xy ).r;
+		float depthDiff = ssHit.z - sampleDepth;
+		if( depthDiff > 0.0 ) {
+			ssHit -= refinementStep;
+		} else {
+			ssHit += refinementStep;
+		}
+		refinementStep *= 0.5;
+	}
+
+	// Sample scene color at the hit point
+	float3 reflectionColor = tex2D( samp0, ssHit.xy ).rgb;
+
+	// Fade at screen edges
+	float2 edgeFade2D = smoothstep( 0.0, 0.1, ssHit.xy ) * ( 1.0 - smoothstep( 0.9, 1.0, ssHit.xy ) );
+	float edgeFade = edgeFade2D.x * edgeFade2D.y;
+
+	// Fade with ray travel distance
+	float distFade = pow( 1.0 - hitT, 1.0 + ssrFadeStrength * 4.0 );
+
+	// Combine: gloss controls reflectivity, blur is global via CVar
+	float alpha = gloss * fresnel * edgeFade * distFade * ssrIntensity;
+
+	result.color = float4( reflectionColor, alpha );
+}

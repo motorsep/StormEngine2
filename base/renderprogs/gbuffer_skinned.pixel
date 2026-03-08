@@ -9,9 +9,12 @@ Encodes view-space normal XYZ into RGB.
 
 #include "global.inc"
 
+uniform sampler2D samp0 : register(s0);  // gloss map
+
 struct PS_IN {
 	float4 position  : VPOS;
 	float3 texcoord0 : TEXCOORD0;
+	float2 texcoord1 : TEXCOORD1;
 };
 
 struct PS_OUT {
@@ -21,9 +24,8 @@ struct PS_OUT {
 void main( PS_IN fragment, out PS_OUT result ) {
 	float3 N = normalize( fragment.texcoord0 );
 
-	// Encode view-space normal into [0,1] range
 	result.color.x = N.x * 0.5 + 0.5;
 	result.color.y = N.y * 0.5 + 0.5;
 	result.color.z = N.z * 0.5 + 0.5;
-	result.color.w = 1.0;
+	result.color.w = tex2D( samp0, fragment.texcoord1 ).r;
 }

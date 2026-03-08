@@ -1,0 +1,82 @@
+/*
+===========================================================================
+SSAO Temporal Resolve — Neighborhood Clamping
+
+Blends current frame AO with reprojected history, clamping history
+to the local min/max of the current frame to prevent ghosting.
+
+samp0 = current frame blurred AO
+samp1 = previous frame resolved AO (history)
+samp2 = depth buffer
+
+rpMVPmatrixX/Y/Z/W = motion matrix (prevMVP * inverse(currentMVP))
+rpProjectionMatrixZ = current projection Z row (for clipW reconstruction)
+rpDiffuseModifier.x = temporal blend factor
+rpScreenCorrectionFactor.xy = 1/aoWidth, 1/aoHeight
+===========================================================================
+*/
+
+#include "global.inc"
+
+uniform sampler2D samp0 : register(s0);
+uniform sampler2D samp1 : register(s1);
+uniform sampler2D samp2 : register(s2);
+
+struct PS_IN {
+	float2 texcoord0 : TEXCOORD0_centroid;
+};
+
+struct PS_OUT {
+	float4 color : COLOR;
+};
+
+void main( PS_IN fragment, out PS_OUT result ) {
+	float2 uv = fragment.texcoord0;
+
+	// Sample current frame's blurred AO
+	float currentAO = tex2D( samp0, uv ).r;
+
+	// Compute neighborhood min/max from 3x3 of current AO
+	// This is the key anti-ghosting mechanism
+	float2 texelSize = rpScreenCorrectionFactor.xy;
+	float aoMin = currentAO;
+	float aoMax = currentAO;
+
+	for( int y = -1; y <= 1; y++ ) {
+		for( int x = -1; x <= 1; x++ ) {
+			if( x == 0 && y == 0 ) continue;
+			float s = tex2D( samp0, uv + float2( float( x ), float( y ) ) * texelSize ).r;
+			aoMin = min( aoMin, s );
+			aoMax = max( aoMax, s );
+		}
+	}
+
+	// Reproject to find where this pixel was last frame
+	float windowZ = tex2D( samp2, uv ).x;
+	float3 ndc = float3( uv * 2.0 - 1.0, windowZ * 2.0 - 1.0 );
+	float clipW = -rpProjectionMatrixZ.w / ( -rpProjectionMatrixZ.z - ndc.z );
+	float4 clip = float4( ndc * clipW, clipW );
+
+	float4 reClip;
+	reClip.x = dot( rpMVPmatrixX, clip );
+	reClip.y = dot( rpMVPmatrixY, clip );
+	reClip.z = dot( rpMVPmatrixZ, clip );
+	reClip.w = dot( rpMVPmatrixW, clip );
+
+	float2 prevUV;
+	prevUV.x = ( reClip.x / reClip.w ) * 0.5 + 0.5;
+	prevUV.y = ( reClip.y / reClip.w ) * 0.5 + 0.5;
+
+	// Check if reprojected UV is on screen
+	float onScreen = ( prevUV.x >= 0.0 && prevUV.x <= 1.0 && prevUV.y >= 0.0 && prevUV.y <= 1.0 ) ? 1.0 : 0.0;
+
+	// Sample history and clamp to neighborhood range
+	float historyAO = tex2D( samp1, prevUV ).r;
+	historyAO = clamp( historyAO, aoMin, aoMax );
+
+	// Blend
+	float blendFactor = rpDiffuseModifier.x * onScreen;
+	float resolved = lerp( currentAO, historyAO, blendFactor );
+
+	result.color = float4( resolved, resolved, resolved, 1.0 );
+}
