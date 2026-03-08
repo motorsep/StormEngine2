@@ -205,6 +205,9 @@ public:
 	void	ConvertNormalMapDXT5_DXN2( const byte* inBuf, byte* outBuf, int width, int height );
 	
 private:
+	// Grant parallel compression job access to private encoder methods
+	friend void DXTCompressionJob( struct dxtCompressionJobParms_t* parms );
+
 	int					width;
 	int					height;
 	byte* 				outData;

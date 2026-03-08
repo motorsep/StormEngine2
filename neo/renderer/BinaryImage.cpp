@@ -42,9 +42,10 @@ If you have questions concerning this license or the applicable additional terms
 #include "tr_local.h"
 #include "DXT/DXTCodec.h"
 #include "Color/ColorSpace.h"
+#include "DXT/DXTJobCompression.h"
 
 idCVar image_highQualityCompression( "image_highQualityCompression", "1", CVAR_BOOL, "Use high quality (slow) compression" );
-
+idCVar image_parallelCompression("image_parallelCompression", "1", CVAR_BOOL, "Use parallel (multithreaded) HQ compression");
 idCVar r_useHightQualitySky( "r_useHightQualitySky", "0", CVAR_BOOL | CVAR_ARCHIVE, "Use high quality skyboxes" );
 
 /*
@@ -168,28 +169,46 @@ void idBinaryImage::Load2DFromMemory( int width, int height, const byte* pic_con
 		{
 			idDxtEncoder dxt;
 			img.Alloc( dxtWidth * dxtHeight );
-			if( colorFormat == CFM_NORMAL_DXT5 )
+			if (colorFormat == CFM_NORMAL_DXT5)
 			{
-				if( image_highQualityCompression.GetBool() && !toolUsage )
+				if (image_highQualityCompression.GetBool() && !toolUsage)
 				{
-					commonLocal.LoadPacifierBinarizeInfo( va( "(%d x %d) - NormalMapDXT5HQ", width, height ) );
+					if (image_parallelCompression.GetBool())
+					{
+						commonLocal.LoadPacifierBinarizeInfo(va("(%d x %d) - NormalMapDXT5HQ [parallel]", width, height));
 
-					dxt.CompressNormalMapDXT5HQ( dxtPic, img.data, dxtWidth, dxtHeight );
+						CompressDXT_Parallel(dxtPic, img.data, dxtWidth, dxtHeight, DXT_COMPRESS_NORMALMAP_DXT5_HQ);
+					}
+					else
+					{
+						commonLocal.LoadPacifierBinarizeInfo(va("(%d x %d) - NormalMapDXT5HQ", width, height));
+
+						dxt.CompressNormalMapDXT5HQ(dxtPic, img.data, dxtWidth, dxtHeight);
+					}
 				}
 				else
 				{
-					commonLocal.LoadPacifierBinarizeInfo( va( "(%d x %d) - NormalMapDXT5Fast", width, height ) );
+					commonLocal.LoadPacifierBinarizeInfo(va("(%d x %d) - NormalMapDXT5Fast", width, height));
 
-					dxt.CompressNormalMapDXT5Fast( dxtPic, img.data, dxtWidth, dxtHeight );
+					dxt.CompressNormalMapDXT5Fast(dxtPic, img.data, dxtWidth, dxtHeight);
 				}
 			}
-			else if( colorFormat == CFM_YCOCG_DXT5 )
+			else if (colorFormat == CFM_YCOCG_DXT5)
 			{
-				if( image_highQualityCompression.GetBool() && !toolUsage )
+				if (image_highQualityCompression.GetBool() && !toolUsage)
 				{
-					commonLocal.LoadPacifierBinarizeInfo( va( "(%d x %d) - YCoCgDXT5HQ", width, height ) );
+					if (image_parallelCompression.GetBool())
+					{
+						commonLocal.LoadPacifierBinarizeInfo(va("(%d x %d) - YCoCgDXT5HQ [parallel]", width, height));
 
-					dxt.CompressYCoCgDXT5HQ( dxtPic, img.data, dxtWidth, dxtHeight );
+						CompressDXT_Parallel(dxtPic, img.data, dxtWidth, dxtHeight, DXT_COMPRESS_YCOCG_DXT5_HQ);
+					}
+					else
+					{
+						commonLocal.LoadPacifierBinarizeInfo(va("(%d x %d) - YCoCgDXT5HQ", width, height));
+
+						dxt.CompressYCoCgDXT5HQ(dxtPic, img.data, dxtWidth, dxtHeight);
+					}
 				}
 				else
 				{
@@ -437,13 +456,15 @@ void idBinaryImage::LoadCubeFromMemory( int width, const byte* pics[6], int numL
 					commonLocal.LoadPacifierBinarizeInfo( va( "cube (%d) YCoCgDXT5HQ", width ) );
 
 					//dxt.CompressYCoCgDXT5HQ( dxtPic, img.data, padSize, padSize ); // padSrc was dxtPic
-					// dxt.CompressImageDXT5HQ( dxtPic, img.data, padSize, padSize );
-					dxt.CompressImageDXT5Fast( dxtPic, img.data, padSize, padSize ); // FIX ME: don't forget to set it back to DXT5HQ compressor for the release
+					dxt.CompressImageDXT5HQ( dxtPic, img.data, padSize, padSize );
+					//dxt.CompressImageDXT5Fast( dxtPic, img.data, padSize, padSize ); // FIX ME: don't forget to set it back to DXT5HQ compressor for the release
 				} else {
 					commonLocal.LoadPacifierBinarizeInfo( va( "cube (%d) YCoCgDXT5Fast", width ) );
 
+					//dxt.CompressYCoCgDXT5HQ(dxtPic, img.data, padSize, padSize);
 					//dxt.CompressYCoCgDXT5Fast( dxtPic, img.data, padSize, padSize ); // padSrc was dxtPic					
-					dxt.CompressImageDXT5Fast( dxtPic, img.data, padSize, padSize );
+					// dxt.CompressImageDXT5Fast(dxtPic, img.data, padSize, padSize);
+					dxt.CompressImageDXT5HQ(dxtPic, img.data, padSize, padSize);
 				}
 			} 
 			else if( usage == TD_HIGHQUALITY_CUBE ) { // motorsep 05-17-2015; do not compress cubemaps if we have material tocken "uncompressed", etc.			
