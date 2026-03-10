@@ -1,110 +1,226 @@
 /*
 ===========================================================================
 
-Doom 3 BFG Edition GPL Source Code
-Copyright (C) 1993-2012 id Software LLC, a ZeniMax Media company. 
+FXAA 3.11 — Self-contained for StormEngine2
+Based on NVIDIA FXAA 3.11 by Timothy Lottes
 
-This file is part of the Doom 3 BFG Edition GPL Source Code ("Doom 3 BFG Edition Source Code").  
+COPYRIGHT (C) 2010, 2011 NVIDIA CORPORATION. ALL RIGHTS RESERVED.
 
-Doom 3 BFG Edition Source Code is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+PC Quality path, preset 12 (5 search steps).
+GREEN_AS_LUMA = 1 (no alpha luma required).
+EARLY_EXIT = 1.
+All console/360/PS3 paths removed.
+Fxaa3_11.h inlined and flattened — no external includes needed.
 
-Doom 3 BFG Edition Source Code is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+samp0 = scene color (LDR, post-tonemap)
 
-You should have received a copy of the GNU General Public License
-along with Doom 3 BFG Edition Source Code.  If not, see <http://www.gnu.org/licenses/>.
-
-In addition, the Doom 3 BFG Edition Source Code is also subject to certain additional terms. You should have received a copy of these additional terms immediately following the terms and conditions of the GNU General Public License which accompanied the Doom 3 BFG Edition Source Code.  If not, please request a copy in writing from id Software at the address below.
-
-If you have questions concerning this license or the applicable additional terms, you may contact in writing id Software LLC, c/o ZeniMax Media Inc., Suite 120, Rockville, Maryland 20850 USA.
+rpUser0.xy = 1.0/screenWidth, 1.0/screenHeight
+rpUser1.x  = subpix quality (0.0=off, 0.75=default, 1.0=max softening)
+rpUser1.y  = edge threshold (0.166=default, 0.125=high quality)
+rpUser1.z  = edge threshold min (0.0833=default)
 
 ===========================================================================
 */
 
 #include "global.inc"
-#define FXAA_GREEN_AS_LUMA 1
-#define FXAA_EARLY_EXIT 0
-#include "Fxaa3_11.h"
 
 uniform sampler2D samp0 : register(s0);
-uniform sampler2D samp1 : register(s1); // exponent bias -1
-uniform sampler2D samp2 : register(s2); // exponent bias -2
 
 uniform float4 rpUser0 : register( c128 );
 uniform float4 rpUser1 : register( c129 );
-uniform float4 rpUser2 : register( c130 );
-uniform float4 rpUser3 : register( c131 );
-uniform float4 rpUser4 : register( c132 );
-uniform float4 rpUser5 : register( c133 );
-uniform float4 rpUser6 : register( c134 );
 
 struct PS_IN {
-	float4 position : VPOS;
+	float4 position  : VPOS;
 	float2 texcoord0 : TEXCOORD0_centroid;
 };
 
-struct PS_OUT {	
+struct PS_OUT {
 	float4 color : COLOR;
 };
 
 void main( PS_IN fragment, out PS_OUT result ) {
+	float2 posM = fragment.texcoord0;
+	float2 rcpFrame = rpUser0.xy;
 
-	const float4 FXAAQualityRCPFrame = rpUser0;
-	const float4 FXAAConsoleRcpFrameOpt = rpUser1;
-	const float4 FXAAConsoleRcpFrameOpt2 = rpUser2;
-	const float4 FXAAConsole360RcpFrameOpt2 = rpUser3;
-	const float4 FXAAQualityParms = rpUser4;
-	const float4 FXAAConsoleEdgeParms = rpUser5;
-	const float4 FXAAConsole360ConstDir = rpUser6;
+	float fxaaQualitySubpix          = rpUser1.x;
+	float fxaaQualityEdgeThreshold   = rpUser1.y;
+	float fxaaQualityEdgeThresholdMin = rpUser1.z;
 
-	// Inputs - see more info in fxaa3_11.hfile
-	FxaaFloat2	fxaaPos = fragment.texcoord0;
-	FxaaFloat4	fxaaConsolePos;
+	// Center pixel
+	float4 rgbyM = tex2Dlod( samp0, float4( posM, 0.0, 0.0 ) );
+	float lumaM = rgbyM.y; // green as luma
 
-	float2 halfPixelOffset = float2( 0.5, 0.5 ) * FXAAQualityRCPFrame.xy;
-	fxaaConsolePos.xy = fxaaPos.xy - ( halfPixelOffset );
-	fxaaConsolePos.zw = fxaaPos.xy + ( halfPixelOffset );
-	FxaaFloat2	fxaaQualityRcpFrame = FXAAQualityRCPFrame.xy;
-	FxaaFloat4	fxaaConsoleRcpFrameOpt = FXAAConsoleRcpFrameOpt;
-	FxaaFloat4	fxaaConsoleRcpFrameOpt2 = FXAAConsoleRcpFrameOpt2;
-	FxaaFloat4	fxaaConsole360RcpFrameOpt2 = FXAAConsole360RcpFrameOpt2;
+	// Cardinal neighbors
+	float lumaS = tex2Dlod( samp0, float4( posM + float2( 0.0,  rcpFrame.y ), 0.0, 0.0 ) ).y;
+	float lumaE = tex2Dlod( samp0, float4( posM + float2( rcpFrame.x,  0.0 ), 0.0, 0.0 ) ).y;
+	float lumaN = tex2Dlod( samp0, float4( posM + float2( 0.0, -rcpFrame.y ), 0.0, 0.0 ) ).y;
+	float lumaW = tex2Dlod( samp0, float4( posM + float2(-rcpFrame.x,  0.0 ), 0.0, 0.0 ) ).y;
 
-	// Quality parms
-	FxaaFloat	fxaaQualitySubpix = FXAAQualityParms.x;
-	FxaaFloat	fxaaQualityEdgeThreshold = FXAAQualityParms.y;
-	FxaaFloat	fxaaQualityEdgeThresholdMin = FXAAQualityParms.z;
+	// Range check — early exit if local contrast is below threshold
+	float maxSM = max( lumaS, lumaM );
+	float minSM = min( lumaS, lumaM );
+	float maxESM = max( lumaE, maxSM );
+	float minESM = min( lumaE, minSM );
+	float maxWN = max( lumaN, lumaW );
+	float minWN = min( lumaN, lumaW );
+	float rangeMax = max( maxWN, maxESM );
+	float rangeMin = min( minWN, minESM );
+	float rangeMaxScaled = rangeMax * fxaaQualityEdgeThreshold;
+	float range = rangeMax - rangeMin;
+	float rangeMaxClamped = max( fxaaQualityEdgeThresholdMin, rangeMaxScaled );
 
-	// Console specific Parms
-	FxaaFloat	fxaaConsoleEdgeSharpness = FXAAConsoleEdgeParms.x;
-	FxaaFloat	fxaaConsoleEdgeThreshold = FXAAConsoleEdgeParms.y;
-	FxaaFloat	fxaaConsoleEdgeThresholdMin = FXAAConsoleEdgeParms.z;
+	if( range < rangeMaxClamped ) {
+		result.color = rgbyM;
+		return;
+	}
 
-	// 360 specific parms these have to come from a constant register so that the compiler
-	// does not unoptimize the shader
-	FxaaFloat4	fxaaConsole360ConstDir = FXAAConsole360ConstDir;
+	// Diagonal neighbors (only fetched if we pass the early exit)
+	float lumaNW = tex2Dlod( samp0, float4( posM + float2(-rcpFrame.x, -rcpFrame.y ), 0.0, 0.0 ) ).y;
+	float lumaSE = tex2Dlod( samp0, float4( posM + float2( rcpFrame.x,  rcpFrame.y ), 0.0, 0.0 ) ).y;
+	float lumaNE = tex2Dlod( samp0, float4( posM + float2( rcpFrame.x, -rcpFrame.y ), 0.0, 0.0 ) ).y;
+	float lumaSW = tex2Dlod( samp0, float4( posM + float2(-rcpFrame.x,  rcpFrame.y ), 0.0, 0.0 ) ).y;
 
+	// Edge detection
+	float lumaNS = lumaN + lumaS;
+	float lumaWE = lumaW + lumaE;
+	float subpixRcpRange = 1.0 / range;
+	float subpixNSWE = lumaNS + lumaWE;
+	float edgeHorz1 = ( -2.0 * lumaM ) + lumaNS;
+	float edgeVert1 = ( -2.0 * lumaM ) + lumaWE;
 
-	float4 colorSample = FxaaPixelShader(	fxaaPos,
-											fxaaConsolePos,
-											samp0,
-											samp1,
-											samp2,
-											fxaaQualityRcpFrame,
-											fxaaConsoleRcpFrameOpt,
-											fxaaConsoleRcpFrameOpt2,
-											fxaaConsole360RcpFrameOpt2,
-											fxaaQualitySubpix,
-											fxaaQualityEdgeThreshold,
-											fxaaQualityEdgeThresholdMin,
-											fxaaConsoleEdgeSharpness,
-											fxaaConsoleEdgeThreshold,
-											fxaaConsoleEdgeThresholdMin,
-											fxaaConsole360ConstDir );
-											
-	result.color = colorSample;
+	float lumaNESE = lumaNE + lumaSE;
+	float lumaNWNE = lumaNW + lumaNE;
+	float edgeHorz2 = ( -2.0 * lumaE ) + lumaNESE;
+	float edgeVert2 = ( -2.0 * lumaN ) + lumaNWNE;
+
+	float lumaNWSW = lumaNW + lumaSW;
+	float lumaSWSE = lumaSW + lumaSE;
+	float edgeHorz4 = ( abs( edgeHorz1 ) * 2.0 ) + abs( edgeHorz2 );
+	float edgeVert4 = ( abs( edgeVert1 ) * 2.0 ) + abs( edgeVert2 );
+	float edgeHorz3 = ( -2.0 * lumaW ) + lumaNWSW;
+	float edgeVert3 = ( -2.0 * lumaS ) + lumaSWSE;
+	float edgeHorz = abs( edgeHorz3 ) + edgeHorz4;
+	float edgeVert = abs( edgeVert3 ) + edgeVert4;
+
+	// Subpixel aliasing detection
+	float subpixNWSWNESE = lumaNWSW + lumaNESE;
+	float lengthSign = rcpFrame.x;
+	bool horzSpan = edgeHorz >= edgeVert;
+	float subpixA = subpixNSWE * 2.0 + subpixNWSWNESE;
+
+	if( !horzSpan ) lumaN = lumaW;
+	if( !horzSpan ) lumaS = lumaE;
+	if( horzSpan ) lengthSign = rcpFrame.y;
+	float subpixB = ( subpixA * ( 1.0 / 12.0 ) ) - lumaM;
+
+	// Gradient computation
+	float gradientN = lumaN - lumaM;
+	float gradientS = lumaS - lumaM;
+	float lumaNN = lumaN + lumaM;
+	float lumaSS = lumaS + lumaM;
+	bool pairN = abs( gradientN ) >= abs( gradientS );
+	float gradient = max( abs( gradientN ), abs( gradientS ) );
+	if( pairN ) lengthSign = -lengthSign;
+	float subpixC = saturate( abs( subpixB ) * subpixRcpRange );
+
+	// Walk start position (half pixel along edge normal)
+	float2 posB;
+	posB.x = posM.x;
+	posB.y = posM.y;
+	float2 offNP;
+	offNP.x = ( !horzSpan ) ? 0.0 : rcpFrame.x;
+	offNP.y = (  horzSpan ) ? 0.0 : rcpFrame.y;
+	if( !horzSpan ) posB.x += lengthSign * 0.5;
+	if(  horzSpan ) posB.y += lengthSign * 0.5;
+
+	// Quality preset 12: step sizes = 1.0, 1.5, 2.0, 4.0, 12.0
+	float2 posN;
+	posN.x = posB.x - offNP.x * 1.0;
+	posN.y = posB.y - offNP.y * 1.0;
+	float2 posP;
+	posP.x = posB.x + offNP.x * 1.0;
+	posP.y = posB.y + offNP.y * 1.0;
+	float subpixD = ( ( -2.0 ) * subpixC ) + 3.0;
+	float lumaEndN = tex2Dlod( samp0, float4( posN, 0.0, 0.0 ) ).y;
+	float subpixE = subpixC * subpixC;
+	float lumaEndP = tex2Dlod( samp0, float4( posP, 0.0, 0.0 ) ).y;
+
+	if( !pairN ) lumaNN = lumaSS;
+	float gradientScaled = gradient * 1.0 / 4.0;
+	float lumaMM = lumaM - lumaNN * 0.5;
+	float subpixF = subpixD * subpixE;
+	bool lumaMLTZero = lumaMM < 0.0;
+
+	lumaEndN -= lumaNN * 0.5;
+	lumaEndP -= lumaNN * 0.5;
+	bool doneN = abs( lumaEndN ) >= gradientScaled;
+	bool doneP = abs( lumaEndP ) >= gradientScaled;
+	if( !doneN ) posN.x -= offNP.x * 1.5;
+	if( !doneN ) posN.y -= offNP.y * 1.5;
+	bool doneNP = ( !doneN ) || ( !doneP );
+	if( !doneP ) posP.x += offNP.x * 1.5;
+	if( !doneP ) posP.y += offNP.y * 1.5;
+
+	// Step 2 (distance = 2.0)
+	if( doneNP ) {
+		if( !doneN ) lumaEndN = tex2Dlod( samp0, float4( posN.xy, 0.0, 0.0 ) ).y;
+		if( !doneP ) lumaEndP = tex2Dlod( samp0, float4( posP.xy, 0.0, 0.0 ) ).y;
+		if( !doneN ) lumaEndN = lumaEndN - lumaNN * 0.5;
+		if( !doneP ) lumaEndP = lumaEndP - lumaNN * 0.5;
+		doneN = abs( lumaEndN ) >= gradientScaled;
+		doneP = abs( lumaEndP ) >= gradientScaled;
+		if( !doneN ) posN.x -= offNP.x * 2.0;
+		if( !doneN ) posN.y -= offNP.y * 2.0;
+		doneNP = ( !doneN ) || ( !doneP );
+		if( !doneP ) posP.x += offNP.x * 2.0;
+		if( !doneP ) posP.y += offNP.y * 2.0;
+
+		// Step 3 (distance = 4.0)
+		if( doneNP ) {
+			if( !doneN ) lumaEndN = tex2Dlod( samp0, float4( posN.xy, 0.0, 0.0 ) ).y;
+			if( !doneP ) lumaEndP = tex2Dlod( samp0, float4( posP.xy, 0.0, 0.0 ) ).y;
+			if( !doneN ) lumaEndN = lumaEndN - lumaNN * 0.5;
+			if( !doneP ) lumaEndP = lumaEndP - lumaNN * 0.5;
+			doneN = abs( lumaEndN ) >= gradientScaled;
+			doneP = abs( lumaEndP ) >= gradientScaled;
+			if( !doneN ) posN.x -= offNP.x * 4.0;
+			if( !doneN ) posN.y -= offNP.y * 4.0;
+			doneNP = ( !doneN ) || ( !doneP );
+			if( !doneP ) posP.x += offNP.x * 4.0;
+			if( !doneP ) posP.y += offNP.y * 4.0;
+
+			// Step 4 (distance = 12.0)
+			if( doneNP ) {
+				if( !doneN ) lumaEndN = tex2Dlod( samp0, float4( posN.xy, 0.0, 0.0 ) ).y;
+				if( !doneP ) lumaEndP = tex2Dlod( samp0, float4( posP.xy, 0.0, 0.0 ) ).y;
+				if( !doneN ) lumaEndN = lumaEndN - lumaNN * 0.5;
+				if( !doneP ) lumaEndP = lumaEndP - lumaNN * 0.5;
+			}
+		}
+	}
+
+	// Compute final pixel offset
+	float dstN = posM.x - posN.x;
+	float dstP = posP.x - posM.x;
+	if( !horzSpan ) dstN = posM.y - posN.y;
+	if( !horzSpan ) dstP = posP.y - posM.y;
+
+	bool goodSpanN = ( lumaEndN < 0.0 ) != lumaMLTZero;
+	float spanLength = ( dstP + dstN );
+	bool goodSpanP = ( lumaEndP < 0.0 ) != lumaMLTZero;
+	float spanLengthRcp = 1.0 / spanLength;
+
+	bool directionN = dstN < dstP;
+	float dst = min( dstN, dstP );
+	bool goodSpan = directionN ? goodSpanN : goodSpanP;
+	float subpixG = subpixF * subpixF;
+	float pixelOffset = ( dst * ( -spanLengthRcp ) ) + 0.5;
+	float subpixH = subpixG * fxaaQualitySubpix;
+
+	float pixelOffsetGood = goodSpan ? pixelOffset : 0.0;
+	float pixelOffsetSubpix = max( pixelOffsetGood, subpixH );
+	if( !horzSpan ) posM.x += pixelOffsetSubpix * lengthSign;
+	if(  horzSpan ) posM.y += pixelOffsetSubpix * lengthSign;
+
+	result.color = float4( tex2Dlod( samp0, float4( posM, 0.0, 0.0 ) ).xyz, lumaM );
 }

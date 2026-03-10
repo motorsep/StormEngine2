@@ -1053,6 +1053,9 @@ extern idCVar r_showSSR;
 extern idCVar r_ssrFadeStrength;
 extern idCVar r_ssrBlur;
 
+// FXAA
+extern idCVar r_fxaa;
+
 extern idCVar r_showTris;					// enables wireframe rendering of the world
 extern idCVar r_showSurfaceInfo;			// show surface material name under crosshair
 extern idCVar r_showNormals;				// draws wireframe normals

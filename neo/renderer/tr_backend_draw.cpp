@@ -5079,7 +5079,8 @@ void RB_PostProcess( const void* data )
 	// corresponding full screen quad pass.
 	// foresthale 2014-02-23: if r_useHDR is on, we need this to run
 	// foresthale 2014-04-21: r_glow also needs this to run
-	if( rs_enable.GetInteger() == 0 && !(r_useHDR.GetBool() && !( com_editors ) ) && !backEnd.glowRenderCopied )
+	//if( rs_enable.GetInteger() == 0 && !(r_useHDR.GetBool() && !( com_editors ) ) && !backEnd.glowRenderCopied )
+	if (rs_enable.GetInteger() == 0 && !(r_useHDR.GetBool() && !(com_editors)) && !backEnd.glowRenderCopied && !r_fxaa.GetBool())
 	{
 		return;
 	}
@@ -5187,6 +5188,47 @@ void RB_PostProcess( const void* data )
 	// Draw
 	RB_DrawElementsWithCounters( &backEnd.unitSquareSurface );
 	
+	// -----------------------------------------------
+	// FXAA anti-aliasing pass
+	// -----------------------------------------------
+	if (r_fxaa.GetBool())
+	{
+		// The HDR resolve just wrote the final image to the system framebuffer.
+		// Copy it so FXAA can read it as a texture.
+		globalImages->currentRenderImage->CopyFramebuffer(0, 0, screenWidth, screenHeight);
+
+		// Stay on system framebuffer — FXAA writes the AA'd result back
+		GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO | GLS_DEPTHMASK | GLS_DEPTHFUNC_ALWAYS);
+		GL_Cull(CT_TWO_SIDED);
+
+		renderProgManager.BindShader_FXAA();
+
+		GL_SelectTexture(0);
+		globalImages->currentRenderImage->Bind();
+
+		// rpUser0: reciprocal frame size
+		float rcpFrame[4];
+		rcpFrame[0] = 1.0f / screenWidth;
+		rcpFrame[1] = 1.0f / screenHeight;
+		rcpFrame[2] = 0.0f;
+		rcpFrame[3] = 0.0f;
+		renderProgManager.SetUniformValue((renderParm_t)(RENDERPARM_USER + 0), rcpFrame);
+
+		// rpUser1: quality parameters
+		//   x = subpix (0.75 default, 1.0 max softening, 0.0 off)
+		//   y = edge threshold (0.166 default, 0.125 high quality)
+		//   z = edge threshold min (0.0833 default)
+		float qualityParms[4];
+		qualityParms[0] = 0.75f;
+		qualityParms[1] = 0.166f;
+		qualityParms[2] = 0.0833f;
+		qualityParms[3] = 0.0f;
+		renderProgManager.SetUniformValue((renderParm_t)(RENDERPARM_USER + 1), qualityParms);
+
+		RB_DrawElementsWithCounters(&backEnd.unitSquareSurface);
+	}
+
+
 	// G-Buffer debug visualization
     if( r_showGbuffer.GetBool() && r_useGbuffer.GetBool() )
     {
