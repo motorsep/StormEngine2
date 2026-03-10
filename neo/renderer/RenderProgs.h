@@ -426,6 +426,12 @@ public:
 		BindShader_Builtin(BUILTIN_SSR);
 	}
 
+	// FXAA
+	void	BindShader_FXAA()
+	{
+		BindShader_Builtin(BUILTIN_FXAA);
+	}
+
 	// the joints buffer should only be bound for vertex programs that use joints
 	bool	ShaderUsesJoints() const
 	{
@@ -522,6 +528,7 @@ protected:
 		BUILTIN_SSAO_APPLY,
 		BUILTIN_SSAO_TEMPORAL,
 		BUILTIN_SSR,
+		BUILTIN_FXAA,
 		MAX_BUILTINS
 	};
 	int builtinShaders[MAX_BUILTINS];

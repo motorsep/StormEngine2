@@ -216,6 +216,9 @@ idCVar r_showSSR("r_showSSR", "0", CVAR_RENDERER | CVAR_BOOL, "debug: show SSR r
 idCVar r_ssrFadeStrength("r_ssrFadeStrength", "0.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "controls how quickly reflections fade with distance: 0=no fade, 1=aggressive fade", 0.0f, 1.0f);
 idCVar r_ssrBlur("r_ssrBlur", "0.0", CVAR_RENDERER | CVAR_FLOAT | CVAR_ARCHIVE, "reflection roughness blur: 0=sharp mirror, 1=maximum blur (uses temporal)", 0.0f, 1.0f);
 
+// FXAA
+idCVar r_fxaa("r_fxaa", "0", CVAR_RENDERER | CVAR_BOOL | CVAR_ARCHIVE, "enable FXAA anti-aliasing");
+
 idCVar r_showPrimitives( "r_showPrimitives", "0", CVAR_RENDERER | CVAR_INTEGER, "report drawsurf/index/vertex counts" );
 idCVar r_showEdges( "r_showEdges", "0", CVAR_RENDERER | CVAR_BOOL, "draw the sil edges" );
 idCVar r_showTexturePolarity( "r_showTexturePolarity", "0", CVAR_RENDERER | CVAR_BOOL, "shade triangles by texture area polarity" );

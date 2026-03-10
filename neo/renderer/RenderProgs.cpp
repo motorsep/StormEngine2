@@ -142,6 +142,7 @@ void idRenderProgManager::Init()
 		{ BUILTIN_SSAO_APPLY, "ssaoApply.vfp" },
 		{ BUILTIN_SSAO_TEMPORAL, "ssaoTemporal.vfp" },
 		{ BUILTIN_SSR, "ssr.vfp" },
+		{ BUILTIN_FXAA, "fxaa.vfp" },
 	};
 	int numBuiltins = sizeof( builtins ) / sizeof( builtins[0] );
 	vertexShaders.SetNum( numBuiltins );
